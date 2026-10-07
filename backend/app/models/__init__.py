@@ -1,7 +1,9 @@
 """ORM models package exports."""
 
 from backend.app.models.history import (
+    AgentRunORM,
     DecisionRecordORM,
+    GitHubEventORM,
     ProgressHistoryORM,
     RiskEventORM,
 )
@@ -24,4 +26,6 @@ __all__ = [
     "ProgressHistoryORM",
     "DecisionRecordORM",
     "RiskEventORM",
+    "AgentRunORM",
+    "GitHubEventORM",
 ]

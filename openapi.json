@@ -1066,6 +1066,291 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/replan/approve": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Approve Candidate Replan",
+        "description": "Approve and activate a proposed candidate replan snapshot.\n\nEnforces:\n- Rule 4: Replanning requires human approval. Never silently change a plan.\n- Rule 5: Plans are immutable, versioned snapshots. Never overwrite history.\n- Appends decision record and progress history.",
+        "operationId": "approve_candidate_replan_api_v1_projects__project_id__replan_approve_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplanApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplanApprovalResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/replan/reject": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Reject Candidate Replan",
+        "description": "Reject a proposed candidate replan proposition.\n\nEnforces:\n- Rule 4: Replanning requires human approval.\n- Rule 5: Records the rejection in the immutable decision audit trail.\n- Active plan remains unchanged.",
+        "operationId": "reject_candidate_replan_api_v1_projects__project_id__replan_reject_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplanRejectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplanRejectionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/github/webhook": {
+      "post": {
+        "tags": [
+          "github"
+        ],
+        "summary": "Receive Github Webhook",
+        "description": "Ingest GitHub webhook event as audit evidence.\n\nVerifies HMAC-SHA256 signature using X-Hub-Signature-256.\nRule 6: Logs commit and PR activity to progress_history as evidence without\nautomatically mutating task completion status.\nRule 7: Never exposes tokens or secrets.",
+        "operationId": "receive_github_webhook_api_v1_projects__project_id__github_webhook_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-GitHub-Event",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "push",
+              "title": "X-Github-Event"
+            }
+          },
+          {
+            "name": "X-Hub-Signature-256",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Hub-Signature-256"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubWebhookResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/agent-loop/step": {
+      "post": {
+        "tags": [
+          "agent-loop"
+        ],
+        "summary": "Run Agent Loop Step",
+        "description": "Execute one cycle of the autonomous multi-agent execution loop.\n\nFlow: PLAN -> EXECUTE -> OBSERVE -> REASON -> (REPLAN -> AWAITING_APPROVAL | CONTINUE)\nEnforces Rule 4: If risks are identified, generates candidate replan and pauses at\nAWAITING_APPROVAL for explicit human governance.",
+        "operationId": "run_agent_loop_step_api_v1_projects__project_id__agent_loop_step_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "triggered_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Trigger source (manual, timer, webhook)",
+              "default": "manual",
+              "title": "Triggered By"
+            },
+            "description": "Trigger source (manual, timer, webhook)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopStepResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/agent-loop/status": {
+      "get": {
+        "tags": [
+          "agent-loop"
+        ],
+        "summary": "Get Agent Loop Status",
+        "description": "Retrieve current loop state and recent agent run audit history.",
+        "operationId": "get_agent_loop_status_api_v1_projects__project_id__agent_loop_status_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentLoopStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -1095,6 +1380,107 @@
   },
   "components": {
     "schemas": {
+      "AgentLoopStatusResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "active_plan_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Plan Version"
+          },
+          "current_status": {
+            "type": "string",
+            "title": "Current Status"
+          },
+          "requires_human_approval": {
+            "type": "boolean",
+            "title": "Requires Human Approval"
+          },
+          "recent_runs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRunSchema"
+            },
+            "type": "array",
+            "title": "Recent Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "active_plan_version",
+          "current_status",
+          "requires_human_approval",
+          "recent_runs"
+        ],
+        "title": "AgentLoopStatusResponse",
+        "description": "Overall status and execution history of the multi-agent loop."
+      },
+      "AgentRunSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "loop_stage": {
+            "type": "string",
+            "title": "Loop Stage"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "details_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Json"
+          },
+          "triggered_by": {
+            "type": "string",
+            "title": "Triggered By"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "loop_stage",
+          "status",
+          "summary",
+          "details_json",
+          "triggered_by",
+          "recorded_at"
+        ],
+        "title": "AgentRunSchema",
+        "description": "Schema representing an execution record in the agent loop audit trail."
+      },
       "DecisionCreateRequest": {
         "properties": {
           "decision_type": {
@@ -1322,6 +1708,35 @@
         "title": "DetectedRiskSchema",
         "description": "Schema representing an identified risk event."
       },
+      "GitHubWebhookResponse": {
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "title": "Received"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "evidence_recorded_count": {
+            "type": "integer",
+            "title": "Evidence Recorded Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "received",
+          "event_type",
+          "summary",
+          "evidence_recorded_count"
+        ],
+        "title": "GitHubWebhookResponse",
+        "description": "Response returned upon processing a GitHub webhook event."
+      },
       "GoalDecompositionRequest": {
         "properties": {
           "goal": {
@@ -1396,6 +1811,73 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LoopStepResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "current_stage": {
+            "type": "string",
+            "title": "Current Stage"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "health_score": {
+            "type": "number",
+            "title": "Health Score"
+          },
+          "is_at_risk": {
+            "type": "boolean",
+            "title": "Is At Risk"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "detected_risks_count": {
+            "type": "integer",
+            "title": "Detected Risks Count"
+          },
+          "actionable_tasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actionable Tasks"
+          },
+          "replan_candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReplanCandidateResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requires_human_approval": {
+            "type": "boolean",
+            "title": "Requires Human Approval",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "current_stage",
+          "status",
+          "health_score",
+          "is_at_risk",
+          "summary",
+          "detected_risks_count",
+          "actionable_tasks"
+        ],
+        "title": "LoopStepResponse",
+        "description": "Response returned upon completing a step/cycle of the multi-agent loop."
       },
       "MemberCreateRequest": {
         "properties": {
@@ -1844,6 +2326,77 @@
         "title": "ProjectResponse",
         "description": "Response schema for a project."
       },
+      "ReplanApprovalRequest": {
+        "properties": {
+          "candidate_plan": {
+            "$ref": "#/components/schemas/PlanCreateRequest",
+            "description": "The candidate replan snapshot to activate."
+          },
+          "decision_rationale": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Decision Rationale",
+            "description": "Justification / context for approving this replan."
+          },
+          "decided_by": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Decided By",
+            "description": "Name or identifier of the human operator granting approval."
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_plan",
+          "decision_rationale",
+          "decided_by"
+        ],
+        "title": "ReplanApprovalRequest",
+        "description": "Request payload to officially approve a candidate replan."
+      },
+      "ReplanApprovalResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "previous_version": {
+            "type": "integer",
+            "title": "Previous Version"
+          },
+          "new_version": {
+            "type": "integer",
+            "title": "New Version"
+          },
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "APPROVED"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanResponseSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "previous_version",
+          "new_version",
+          "decision_id",
+          "summary",
+          "plan"
+        ],
+        "title": "ReplanApprovalResponse",
+        "description": "Response returned upon successful approval and activation of a new plan version."
+      },
       "ReplanCandidateResponse": {
         "properties": {
           "project_id": {
@@ -1961,6 +2514,63 @@
         ],
         "title": "ReplanExplanationResponse",
         "description": "Executive explanation generated from deterministic replan metrics."
+      },
+      "ReplanRejectionRequest": {
+        "properties": {
+          "rationale": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Rationale",
+            "description": "Reason for rejecting the candidate replan."
+          },
+          "decided_by": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Decided By",
+            "description": "Name or identifier of the human operator rejecting the plan."
+          }
+        },
+        "type": "object",
+        "required": [
+          "rationale",
+          "decided_by"
+        ],
+        "title": "ReplanRejectionRequest",
+        "description": "Request payload to reject a candidate replan proposition."
+      },
+      "ReplanRejectionResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "current_version": {
+            "type": "integer",
+            "title": "Current Version"
+          },
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "REJECTED"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "current_version",
+          "decision_id",
+          "rationale"
+        ],
+        "title": "ReplanRejectionResponse",
+        "description": "Response returned upon formal rejection of a candidate replan proposition."
       },
       "RiskAnalysisResponse": {
         "properties": {

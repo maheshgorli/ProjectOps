@@ -90,3 +90,53 @@ async def test_append_only_decisions_and_risks(test_session: AsyncSession):
     assert len(risks) == 1
     assert risks[0].risk_type == "CRITICAL_PATH_SLIPPAGE"
     assert risks[0].severity == "HIGH"
+
+
+@pytest.mark.asyncio
+async def test_append_only_agent_runs_and_github_events(test_session: AsyncSession):
+    project_repo = ProjectRepository(test_session)
+    history_repo = HistoryRepository(test_session)
+
+    project = await project_repo.create_project(name="Agent Loop & GH History Project")
+
+    # Record agent runs
+    run1 = await history_repo.record_agent_run(
+        project_id=project.id,
+        loop_stage="PLAN",
+        status="SUCCESS",
+        summary="Plan stage complete",
+    )
+    run2 = await history_repo.record_agent_run(
+        project_id=project.id,
+        loop_stage="REPLAN",
+        status="AWAITING_APPROVAL",
+        summary="Replan candidate requires approval",
+    )
+    assert run1.id is not None
+    assert run2.id is not None
+
+    # Record github event
+    gh_event = await history_repo.record_github_event(
+        project_id=project.id,
+        event_type="push",
+        sender="octocat",
+        summary="Push event by octocat",
+        ref="refs/heads/main",
+        commit_sha="11223344",
+        raw_payload_json='{"ref": "refs/heads/main"}',
+    )
+    assert gh_event.id is not None
+
+    await test_session.commit()
+
+    # Query agent runs (sorted newest first)
+    runs = await history_repo.get_agent_runs(project.id, limit=10)
+    assert len(runs) == 2
+    assert runs[0].loop_stage == "REPLAN"
+    assert runs[1].loop_stage == "PLAN"
+
+    # Query github events
+    gh_events = await history_repo.get_github_events(project.id, limit=10)
+    assert len(gh_events) == 1
+    assert gh_events[0].sender == "octocat"
+    assert gh_events[0].commit_sha == "11223344"
