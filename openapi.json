@@ -537,6 +537,110 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/risks/analyze": {
+      "get": {
+        "tags": [
+          "risks"
+        ],
+        "summary": "Analyze Project Risks",
+        "description": "Run deterministic risk rules, compute project health, and log events.\n\nRule 1 & 5: Deterministic risk rules, append-only risk event recording.",
+        "operationId": "analyze_project_risks_api_v1_projects__project_id__risks_analyze_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Specific plan version; defaults to active",
+              "title": "Version"
+            },
+            "description": "Specific plan version; defaults to active"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/replan/propose": {
+      "post": {
+        "tags": [
+          "risks"
+        ],
+        "summary": "Propose Replan Mitigation",
+        "description": "Generate a deterministically simulated replan candidate to mitigate risks.\n\nRule 3 & 4: Replans are simulated by deterministic scheduler; require human approval.\nDoes NOT write new plan version to DB.",
+        "operationId": "propose_replan_mitigation_api_v1_projects__project_id__replan_propose_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplanCandidateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/history/progress": {
       "post": {
         "tags": [
@@ -1039,6 +1143,54 @@
         "title": "DependencyType",
         "description": "Dependency precedence types (standard project network types)."
       },
+      "DetectedRiskSchema": {
+        "properties": {
+          "risk_type": {
+            "$ref": "#/components/schemas/RiskType"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/RiskSeverity"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "affected_task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Affected Task Ids",
+            "default": []
+          },
+          "metrics": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Metrics",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "risk_type",
+          "severity",
+          "description"
+        ],
+        "title": "DetectedRiskSchema",
+        "description": "Schema representing an identified risk event."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1499,6 +1651,106 @@
         "title": "ProjectResponse",
         "description": "Response schema for a project."
       },
+      "ReplanCandidateResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "baseline_version": {
+            "type": "integer",
+            "title": "Baseline Version"
+          },
+          "proposed_version": {
+            "type": "integer",
+            "title": "Proposed Version"
+          },
+          "baseline_finish_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Baseline Finish Date"
+          },
+          "proposed_finish_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Proposed Finish Date"
+          },
+          "finish_date_delta_days": {
+            "type": "integer",
+            "title": "Finish Date Delta Days"
+          },
+          "resolved_risks_count": {
+            "type": "integer",
+            "title": "Resolved Risks Count"
+          },
+          "mitigation_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mitigation Notes"
+          },
+          "proposed_plan": {
+            "$ref": "#/components/schemas/PlanResponseSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "baseline_version",
+          "proposed_version",
+          "baseline_finish_date",
+          "proposed_finish_date",
+          "finish_date_delta_days",
+          "resolved_risks_count",
+          "mitigation_notes",
+          "proposed_plan"
+        ],
+        "title": "ReplanCandidateResponse",
+        "description": "Proposed candidate replan with deterministic impact evaluation."
+      },
+      "RiskAnalysisResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "plan_version": {
+            "type": "integer",
+            "title": "Plan Version"
+          },
+          "health_score": {
+            "type": "integer",
+            "title": "Health Score"
+          },
+          "is_at_risk": {
+            "type": "boolean",
+            "title": "Is At Risk"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "risks": {
+            "items": {
+              "$ref": "#/components/schemas/DetectedRiskSchema"
+            },
+            "type": "array",
+            "title": "Risks",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "plan_version",
+          "health_score",
+          "is_at_risk",
+          "summary"
+        ],
+        "title": "RiskAnalysisResponse",
+        "description": "Complete risk evaluation output for a project plan snapshot."
+      },
       "RiskEventCreateRequest": {
         "properties": {
           "risk_type": {
@@ -1591,6 +1843,28 @@
         ],
         "title": "RiskEventResponse",
         "description": "Response schema for a detected risk anomaly record."
+      },
+      "RiskSeverity": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "title": "RiskSeverity",
+        "description": "Risk severity classifications."
+      },
+      "RiskType": {
+        "type": "string",
+        "enum": [
+          "CRITICAL_PATH_DELAY",
+          "CAPACITY_OVERLOAD",
+          "BLOCKED_CASCADE",
+          "DEADLINE_BREACH"
+        ],
+        "title": "RiskType",
+        "description": "Categorized risk event types."
       },
       "ScheduleResponse": {
         "properties": {

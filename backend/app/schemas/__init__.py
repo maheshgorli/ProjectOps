@@ -22,6 +22,11 @@ from backend.app.schemas.project import (
     ProjectCreateRequest,
     ProjectResponse,
 )
+from backend.app.schemas.risk import (
+    DetectedRiskSchema,
+    ReplanCandidateResponse,
+    RiskAnalysisResponse,
+)
 from backend.app.schemas.schedule import (
     MemberWorkloadResponse,
     ScheduledTaskResponse,
@@ -52,4 +57,7 @@ __all__ = [
     "DecisionResponse",
     "RiskEventCreateRequest",
     "RiskEventResponse",
+    "DetectedRiskSchema",
+    "RiskAnalysisResponse",
+    "ReplanCandidateResponse",
 ]
