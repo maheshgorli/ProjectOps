@@ -1,5 +1,13 @@
 """Pydantic v2 schemas package exports."""
 
+from backend.app.schemas.ai import (
+    DecomposedGoalSchema,
+    DecomposedTaskSchema,
+    GoalDecompositionRequest,
+    GoalDecompositionResponse,
+    ReplanExplanationRequest,
+    ReplanExplanationResponse,
+)
 from backend.app.schemas.history import (
     DecisionCreateRequest,
     DecisionResponse,
@@ -60,4 +68,10 @@ __all__ = [
     "DetectedRiskSchema",
     "RiskAnalysisResponse",
     "ReplanCandidateResponse",
+    "DecomposedTaskSchema",
+    "DecomposedGoalSchema",
+    "GoalDecompositionRequest",
+    "GoalDecompositionResponse",
+    "ReplanExplanationRequest",
+    "ReplanExplanationResponse",
 ]

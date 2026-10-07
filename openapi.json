@@ -971,6 +971,101 @@
         }
       }
     },
+    "/api/v1/ai/decompose-goal": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Decompose Goal Endpoint",
+        "description": "Decompose a high-level project goal into structured tasks and dependencies.\n\nRule 2: Validated via Pydantic v2 and TaskGraph. Never writes to DB directly.",
+        "operationId": "decompose_goal_endpoint_api_v1_ai_decompose_goal_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalDecompositionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalDecompositionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/replan/explain": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Explain Replan Endpoint",
+        "description": "Generate an executive explanation grounded in deterministic replan metrics.\n\nRule 3: The LLM explains computed numbers; it never invents them.",
+        "operationId": "explain_replan_endpoint_api_v1_projects__project_id__replan_explain_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplanExplanationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplanExplanationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -1104,6 +1199,42 @@
         "title": "DecisionResponse",
         "description": "Response schema for a decision record."
       },
+      "DecomposedTaskSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description",
+            "default": ""
+          },
+          "estimated_hours": {
+            "type": "number",
+            "maximum": 200.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Estimated Hours",
+            "default": 8.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "DecomposedTaskSchema",
+        "description": "An individual engineering task produced by goal decomposition."
+      },
       "DependencySchema": {
         "properties": {
           "predecessor_id": {
@@ -1190,6 +1321,68 @@
         ],
         "title": "DetectedRiskSchema",
         "description": "Schema representing an identified risk event."
+      },
+      "GoalDecompositionRequest": {
+        "properties": {
+          "goal": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Goal"
+          },
+          "context": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Context",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal"
+        ],
+        "title": "GoalDecompositionRequest",
+        "description": "User request to decompose a high-level project goal."
+      },
+      "GoalDecompositionResponse": {
+        "properties": {
+          "goal": {
+            "type": "string",
+            "title": "Goal"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/DecomposedTaskSchema"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/DependencySchema"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          },
+          "estimated_total_hours": {
+            "type": "number",
+            "title": "Estimated Total Hours"
+          },
+          "is_valid_dag": {
+            "type": "boolean",
+            "title": "Is Valid Dag"
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal",
+          "tasks",
+          "dependencies",
+          "estimated_total_hours",
+          "is_valid_dag"
+        ],
+        "title": "GoalDecompositionResponse",
+        "description": "Validated response from goal decomposition."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1708,6 +1901,66 @@
         ],
         "title": "ReplanCandidateResponse",
         "description": "Proposed candidate replan with deterministic impact evaluation."
+      },
+      "ReplanExplanationRequest": {
+        "properties": {
+          "baseline_version": {
+            "type": "integer",
+            "title": "Baseline Version"
+          },
+          "proposed_version": {
+            "type": "integer",
+            "title": "Proposed Version"
+          },
+          "baseline_finish_date": {
+            "type": "string",
+            "title": "Baseline Finish Date"
+          },
+          "proposed_finish_date": {
+            "type": "string",
+            "title": "Proposed Finish Date"
+          },
+          "finish_date_delta_days": {
+            "type": "integer",
+            "title": "Finish Date Delta Days"
+          },
+          "mitigation_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mitigation Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline_version",
+          "proposed_version",
+          "baseline_finish_date",
+          "proposed_finish_date",
+          "finish_date_delta_days"
+        ],
+        "title": "ReplanExplanationRequest",
+        "description": "Request to generate an executive explanation for a simulated replan."
+      },
+      "ReplanExplanationResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "explanation"
+        ],
+        "title": "ReplanExplanationResponse",
+        "description": "Executive explanation generated from deterministic replan metrics."
       },
       "RiskAnalysisResponse": {
         "properties": {
