@@ -1,0 +1,2012 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ProjectOps API",
+    "description": "Autonomous multi-agent project execution and risk management system. Deterministic scheduling, immutable versioned plans, and append-only audits.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "description": "List all projects.",
+        "operationId": "list_projects_api_v1_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Projects Api V1 Projects Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create Project",
+        "description": "Create a new project.",
+        "operationId": "create_project_api_v1_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project",
+        "description": "Get project details including members.",
+        "operationId": "get_project_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/members": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Add Project Member",
+        "description": "Add a team member to a project.",
+        "operationId": "add_project_member_api_v1_projects__project_id__members_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Project Members",
+        "description": "List members assigned to a project.",
+        "operationId": "list_project_members_api_v1_projects__project_id__members_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "title": "Response List Project Members Api V1 Projects  Project Id  Members Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/plans": {
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Create Plan Snapshot",
+        "description": "Submit a new immutable plan snapshot (Rule 5: version increment, no overwrite).",
+        "operationId": "create_plan_snapshot_api_v1_projects__project_id__plans_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanResponseSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/plans/active": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Get Active Plan",
+        "description": "Fetch the currently active plan snapshot.",
+        "operationId": "get_active_plan_api_v1_projects__project_id__plans_active_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanResponseSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/plans/versions": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "List Plan Versions",
+        "description": "List all immutable version numbers available for a project.",
+        "operationId": "list_plan_versions_api_v1_projects__project_id__plans_versions_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanVersionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/plans/{version}": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Get Plan By Version",
+        "description": "Retrieve an immutable historical plan snapshot by its version number.",
+        "operationId": "get_plan_by_version_api_v1_projects__project_id__plans__version__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanResponseSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/schedule": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Get Schedule",
+        "description": "Run deterministic CPM schedule on active or versioned plan.",
+        "operationId": "get_schedule_api_v1_projects__project_id__schedule_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Specific plan version; defaults to active",
+              "title": "Version"
+            },
+            "description": "Specific plan version; defaults to active"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Override project start date",
+              "title": "Start Date"
+            },
+            "description": "Override project start date"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/schedule/simulate": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Simulate Schedule",
+        "description": "Run what-if scenario simulation without saving to database.\n\nCore Principle 3: Replans are simulated by the deterministic scheduler.",
+        "operationId": "simulate_schedule_api_v1_projects__project_id__schedule_simulate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleSimulationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSimulationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/history/progress": {
+      "post": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Record Progress Event",
+        "description": "Append a task progress event to the audit trail (Rule 5: append-only).",
+        "operationId": "record_progress_event_api_v1_projects__project_id__history_progress_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressEventCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressEventResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "List Progress History",
+        "description": "Retrieve chronological progress history for a project or specific task.",
+        "operationId": "list_progress_history_api_v1_projects__project_id__history_progress_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by task ID",
+              "title": "Task Id"
+            },
+            "description": "Filter by task ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProgressEventResponse"
+                  },
+                  "title": "Response List Progress History Api V1 Projects  Project Id  History Progress Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/decisions": {
+      "post": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Record Decision",
+        "description": "Record a replan or governance decision (Rule 4: Replanning requires approval).",
+        "operationId": "record_decision_api_v1_projects__project_id__decisions_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "List Decisions",
+        "description": "Retrieve all governance and replan decisions for a project.",
+        "operationId": "list_decisions_api_v1_projects__project_id__decisions_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DecisionResponse"
+                  },
+                  "title": "Response List Decisions Api V1 Projects  Project Id  Decisions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/risks": {
+      "post": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Record Risk",
+        "description": "Record a detected risk anomaly in the immutable risk register.",
+        "operationId": "record_risk_api_v1_projects__project_id__risks_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RiskEventCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskEventResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "List Risks",
+        "description": "Retrieve all risk anomaly events recorded for a project.",
+        "operationId": "list_risks_api_v1_projects__project_id__risks_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "min_severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by minimum severity",
+              "title": "Min Severity"
+            },
+            "description": "Filter by minimum severity"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RiskEventResponse"
+                  },
+                  "title": "Response List Risks Api V1 Projects  Project Id  Risks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health Check",
+        "description": "Health check endpoint.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DecisionCreateRequest": {
+        "properties": {
+          "decision_type": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Decision Type"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Summary"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Rationale",
+            "default": ""
+          },
+          "decided_by": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Decided By"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision_type",
+          "summary",
+          "decided_by"
+        ],
+        "title": "DecisionCreateRequest",
+        "description": "Payload to record a governance or replan decision."
+      },
+      "DecisionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "decision_type": {
+            "type": "string",
+            "title": "Decision Type"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "decided_by": {
+            "type": "string",
+            "title": "Decided By"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "plan_id",
+          "decision_type",
+          "summary",
+          "rationale",
+          "decided_by",
+          "recorded_at"
+        ],
+        "title": "DecisionResponse",
+        "description": "Response schema for a decision record."
+      },
+      "DependencySchema": {
+        "properties": {
+          "predecessor_id": {
+            "type": "string",
+            "title": "Predecessor Id"
+          },
+          "successor_id": {
+            "type": "string",
+            "title": "Successor Id"
+          },
+          "dep_type": {
+            "$ref": "#/components/schemas/DependencyType",
+            "default": "FINISH_TO_START"
+          },
+          "lag_days": {
+            "type": "integer",
+            "title": "Lag Days",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "predecessor_id",
+          "successor_id"
+        ],
+        "title": "DependencySchema",
+        "description": "Precedence dependency relationship between tasks."
+      },
+      "DependencyType": {
+        "type": "string",
+        "enum": [
+          "FINISH_TO_START",
+          "START_TO_START",
+          "FINISH_TO_FINISH",
+          "START_TO_FINISH"
+        ],
+        "title": "DependencyType",
+        "description": "Dependency precedence types (standard project network types)."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MemberCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Role",
+            "default": "engineer"
+          },
+          "daily_capacity_hours": {
+            "type": "number",
+            "maximum": 24.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Daily Capacity Hours",
+            "default": 8.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MemberCreateRequest",
+        "description": "Payload to add a member to a project."
+      },
+      "MemberResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "daily_capacity_hours": {
+            "type": "number",
+            "title": "Daily Capacity Hours"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "role",
+          "daily_capacity_hours",
+          "created_at"
+        ],
+        "title": "MemberResponse",
+        "description": "Response schema for a project member."
+      },
+      "MemberWorkloadResponse": {
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "capacity_hours_per_day": {
+            "type": "number",
+            "title": "Capacity Hours Per Day"
+          },
+          "total_assigned_hours": {
+            "type": "number",
+            "title": "Total Assigned Hours"
+          },
+          "daily_allocated_hours": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Daily Allocated Hours"
+          },
+          "peak_daily_hours": {
+            "type": "number",
+            "title": "Peak Daily Hours"
+          },
+          "is_overallocated": {
+            "type": "boolean",
+            "title": "Is Overallocated"
+          },
+          "overallocated_dates": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Overallocated Dates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "capacity_hours_per_day",
+          "total_assigned_hours",
+          "daily_allocated_hours",
+          "peak_daily_hours",
+          "is_overallocated",
+          "overallocated_dates"
+        ],
+        "title": "MemberWorkloadResponse",
+        "description": "Workload utilization and capacity analysis for a member."
+      },
+      "PlanCreateRequest": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version",
+            "description": "Monotonically increasing version number"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "target_completion_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Completion Date"
+          },
+          "created_by": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Created By",
+            "default": "system"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskCreateSchema"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/DependencySchema"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "name"
+        ],
+        "title": "PlanCreateRequest",
+        "description": "Payload to create an immutable plan snapshot."
+      },
+      "PlanResponseSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "target_completion_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Completion Date"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskResponseSchema"
+            },
+            "type": "array",
+            "title": "Tasks",
+            "default": []
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/DependencySchema"
+            },
+            "type": "array",
+            "title": "Dependencies",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "version",
+          "name",
+          "target_completion_date",
+          "created_at",
+          "created_by"
+        ],
+        "title": "PlanResponseSchema",
+        "description": "Response schema for a complete versioned plan snapshot."
+      },
+      "PlanVersionListResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "versions": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "active_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "versions",
+          "active_version"
+        ],
+        "title": "PlanVersionListResponse",
+        "description": "Response schema listing available plan versions for a project."
+      },
+      "ProgressEventCreateRequest": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Task Id"
+          },
+          "new_status": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "New Status"
+          },
+          "previous_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Status"
+          },
+          "evidence_notes": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Evidence Notes",
+            "default": ""
+          },
+          "recorded_by": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Recorded By",
+            "default": "system"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "new_status"
+        ],
+        "title": "ProgressEventCreateRequest",
+        "description": "Payload to record a task progress event."
+      },
+      "ProgressEventResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "previous_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Status"
+          },
+          "new_status": {
+            "type": "string",
+            "title": "New Status"
+          },
+          "evidence_notes": {
+            "type": "string",
+            "title": "Evidence Notes"
+          },
+          "recorded_by": {
+            "type": "string",
+            "title": "Recorded By"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "task_id",
+          "previous_status",
+          "new_status",
+          "evidence_notes",
+          "recorded_by",
+          "recorded_at"
+        ],
+        "title": "ProgressEventResponse",
+        "description": "Response schema for a progress event record."
+      },
+      "ProjectCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreateRequest",
+        "description": "Payload to create a new project."
+      },
+      "ProjectResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberResponse"
+            },
+            "type": "array",
+            "title": "Members",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectResponse",
+        "description": "Response schema for a project."
+      },
+      "RiskEventCreateRequest": {
+        "properties": {
+          "risk_type": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Risk Type"
+          },
+          "severity": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Severity"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "payload_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Json"
+          }
+        },
+        "type": "object",
+        "required": [
+          "risk_type",
+          "severity",
+          "description"
+        ],
+        "title": "RiskEventCreateRequest",
+        "description": "Payload to record a detected risk anomaly."
+      },
+      "RiskEventResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "risk_type": {
+            "type": "string",
+            "title": "Risk Type"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "payload_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Json"
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Detected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "risk_type",
+          "severity",
+          "description",
+          "payload_json",
+          "detected_at"
+        ],
+        "title": "RiskEventResponse",
+        "description": "Response schema for a detected risk anomaly record."
+      },
+      "ScheduleResponse": {
+        "properties": {
+          "project_start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Project Start Date"
+          },
+          "project_finish_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Project Finish Date"
+          },
+          "target_completion_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Completion Date"
+          },
+          "scheduled_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduledTaskResponse"
+            },
+            "type": "array",
+            "title": "Scheduled Tasks"
+          },
+          "critical_path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Critical Path"
+          },
+          "member_workloads": {
+            "items": {
+              "$ref": "#/components/schemas/MemberWorkloadResponse"
+            },
+            "type": "array",
+            "title": "Member Workloads"
+          },
+          "is_feasible": {
+            "type": "boolean",
+            "title": "Is Feasible"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_start_date",
+          "project_finish_date",
+          "target_completion_date",
+          "scheduled_tasks",
+          "critical_path",
+          "member_workloads",
+          "is_feasible"
+        ],
+        "title": "ScheduleResponse",
+        "description": "Complete computed project schedule output."
+      },
+      "ScheduleSimulationRequest": {
+        "properties": {
+          "candidate_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskCreateSchema"
+            },
+            "type": "array",
+            "title": "Candidate Tasks"
+          },
+          "candidate_dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/DependencySchema"
+            },
+            "type": "array",
+            "title": "Candidate Dependencies"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "target_completion_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Completion Date"
+          }
+        },
+        "type": "object",
+        "title": "ScheduleSimulationRequest",
+        "description": "What-if simulation payload (computes impact without writing to DB)."
+      },
+      "ScheduleSimulationResponse": {
+        "properties": {
+          "baseline_finish_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Baseline Finish Date"
+          },
+          "simulated_finish_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Simulated Finish Date"
+          },
+          "finish_date_delta_working_days": {
+            "type": "integer",
+            "title": "Finish Date Delta Working Days"
+          },
+          "critical_path_changed": {
+            "type": "boolean",
+            "title": "Critical Path Changed"
+          },
+          "simulation": {
+            "$ref": "#/components/schemas/ScheduleResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline_finish_date",
+          "simulated_finish_date",
+          "finish_date_delta_working_days",
+          "critical_path_changed",
+          "simulation"
+        ],
+        "title": "ScheduleSimulationResponse",
+        "description": "Comparison diff between active baseline and simulated scenario."
+      },
+      "ScheduledTaskResponse": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "early_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Early Start"
+          },
+          "early_finish": {
+            "type": "string",
+            "format": "date",
+            "title": "Early Finish"
+          },
+          "late_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Late Start"
+          },
+          "late_finish": {
+            "type": "string",
+            "format": "date",
+            "title": "Late Finish"
+          },
+          "duration_days": {
+            "type": "integer",
+            "title": "Duration Days"
+          },
+          "total_float": {
+            "type": "integer",
+            "title": "Total Float"
+          },
+          "is_critical": {
+            "type": "boolean",
+            "title": "Is Critical"
+          },
+          "is_overdue": {
+            "type": "boolean",
+            "title": "Is Overdue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "early_start",
+          "early_finish",
+          "late_start",
+          "late_finish",
+          "duration_days",
+          "total_float",
+          "is_critical",
+          "is_overdue"
+        ],
+        "title": "ScheduledTaskResponse",
+        "description": "Timing and float metrics for a scheduled task."
+      },
+      "TaskCreateSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description",
+            "default": ""
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus",
+            "default": "TODO"
+          },
+          "estimated_hours": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Estimated Hours",
+            "default": 8.0
+          },
+          "assigned_to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Id"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "TaskCreateSchema",
+        "description": "Schema for defining a task when creating or updating a plan snapshot."
+      },
+      "TaskResponseSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "estimated_hours": {
+            "type": "number",
+            "title": "Estimated Hours"
+          },
+          "assigned_to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Id"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "is_overdue": {
+            "type": "boolean",
+            "title": "Is Overdue",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "status",
+          "estimated_hours",
+          "assigned_to_id",
+          "due_date",
+          "start_date",
+          "completed_at"
+        ],
+        "title": "TaskResponseSchema",
+        "description": "Schema for task representation in a plan snapshot response."
+      },
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "TODO",
+          "IN_PROGRESS",
+          "BLOCKED",
+          "COMPLETED"
+        ],
+        "title": "TaskStatus",
+        "description": "Valid task statuses.\nRule: OVERDUE is strictly a derived property, never a stored status."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

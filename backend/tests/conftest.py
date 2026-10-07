@@ -1,7 +1,8 @@
-"""Global pytest configuration and database fixtures."""
+"""Global pytest configuration, database fixtures, and test HTTP client."""
 
 from collections.abc import AsyncGenerator
 
+import httpx
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import (
 
 import backend.app.models  # noqa: F401 - ensure all ORM models are registered
 from backend.app.db.base import Base
+from backend.app.db.session import get_async_session
+from backend.app.main import app
 
 
 @pytest_asyncio.fixture
@@ -38,3 +41,17 @@ async def test_session() -> AsyncGenerator[AsyncSession, None]:
         await conn.run_sync(Base.metadata.drop_all)
 
     await test_engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def client(test_session: AsyncSession) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Provide an HTTP test client with overridden database session."""
+
+    async def _get_test_session() -> AsyncGenerator[AsyncSession, None]:
+        yield test_session
+
+    app.dependency_overrides[get_async_session] = _get_test_session
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()

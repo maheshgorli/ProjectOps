@@ -23,11 +23,13 @@ class ProjectRepository:
         project_id: str | None = None,
     ) -> ProjectORM:
         """Create a new project entity."""
+        pid = project_id or str(uuid4())
         project = ProjectORM(
-            id=project_id or str(uuid4()),
+            id=pid,
             name=name,
             description=description,
         )
+        project.members = []
         self.session.add(project)
         await self.session.flush()
         return project
@@ -43,8 +45,12 @@ class ProjectRepository:
         return result.scalar_one_or_none()
 
     async def list_projects(self) -> Sequence[ProjectORM]:
-        """List all projects."""
-        stmt = select(ProjectORM).order_by(ProjectORM.created_at.desc())
+        """List all projects with members loaded."""
+        stmt = (
+            select(ProjectORM)
+            .options(selectinload(ProjectORM.members))
+            .order_by(ProjectORM.created_at.desc())
+        )
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
