@@ -32,6 +32,14 @@ class CycleDetectedError(GraphError):
         self.cycle_path = list(cycle_path)
 
 
+class SelfDependencyError(CycleDetectedError):
+    """Raised when a task depends directly on itself."""
+
+    def __init__(self, task_id: str) -> None:
+        super().__init__([task_id, task_id])
+        self.task_id = task_id
+
+
 class TaskGraph:
     """Directed graph representing task dependencies."""
 
@@ -67,12 +75,17 @@ class TaskGraph:
             pred_list.sort()
 
     def find_cycle(self) -> list[str] | None:
-        """
-        Detect any cycle in the graph using DFS with 3-state coloring:
+        """Detect any cycle in the graph using DFS with 3-state coloring:
+
         0 = unvisited, 1 = visiting (in recursion stack), 2 = visited.
 
         Returns the cycle path as a list of task IDs [A, B, C, A], or None if DAG.
         """
+        # First check for direct self-loops
+        for node in sorted(self.task_ids):
+            if node in self.successors[node]:
+                return [node, node]
+
         visited: dict[str, int] = {t_id: 0 for t_id in self.task_ids}
         parent: dict[str, str | None] = {t_id: None for t_id in self.task_ids}
 
@@ -92,7 +105,6 @@ class TaskGraph:
 
                 if succ_idx < len(neighbors):
                     v = neighbors[succ_idx]
-                    # Update index on stack for next iteration
                     stack[-1] = (u, succ_idx + 1)
 
                     if visited[v] == 1:
@@ -117,29 +129,27 @@ class TaskGraph:
         return None
 
     def validate_dag(self) -> None:
-        """Raise CycleDetectedError if the graph contains any cycle."""
+        """Raise CycleDetectedError or SelfDependencyError if the graph contains any cycle."""
         cycle = self.find_cycle()
         if cycle:
+            if len(cycle) == 2 and cycle[0] == cycle[1]:
+                raise SelfDependencyError(cycle[0])
             raise CycleDetectedError(cycle)
 
     def topological_sort(self) -> list[str]:
-        """
-        Produce a deterministic topological ordering using Kahn's algorithm
-        with a sorted priority/tie-break queue.
+        """Produce a deterministic topological ordering using Kahn's algorithm
+
+        with sorted priority tie-breaking.
 
         Raises CycleDetectedError if the graph has a cycle.
         """
         in_degree: dict[str, int] = {t_id: len(self.predecessors[t_id]) for t_id in self.task_ids}
 
-        # Zero in-degree nodes sorted alphabetically for deterministic output
         zero_in_degree = sorted([t_id for t_id, deg in in_degree.items() if deg == 0])
         queue = deque(zero_in_degree)
-
         sorted_order: list[str] = []
 
         while queue:
-            # Pop smallest node alphabetically among available nodes
-            # To ensure strict alphabetical tie breaking when new 0 in-degree nodes appear:
             queue_list = sorted(list(queue))
             u = queue_list.pop(0)
             queue = deque(queue_list)
@@ -152,9 +162,51 @@ class TaskGraph:
                     queue.append(v)
 
         if len(sorted_order) != len(self.task_ids):
-            # Graph has cycle
             self.validate_dag()
-            # If for some reason validate_dag didn't raise, raise generic
             raise CycleDetectedError(["cycle"])
 
         return sorted_order
+
+    def get_downstream(self, task_id: str, transitive: bool = True) -> set[str]:
+        """Return tasks that depend on task_id.
+
+        If transitive=True, returns all downstream tasks reachable from task_id.
+        If transitive=False, returns only direct successors.
+        """
+        if task_id not in self.task_ids:
+            raise TaskNotFoundError(task_id)
+
+        direct = set(self.successors[task_id])
+        if not transitive:
+            return direct
+
+        downstream: set[str] = set()
+        queue = deque(direct)
+        while queue:
+            curr = queue.popleft()
+            if curr not in downstream:
+                downstream.add(curr)
+                queue.extend(self.successors[curr])
+        return downstream
+
+    def get_upstream(self, task_id: str, transitive: bool = True) -> set[str]:
+        """Return tasks that task_id depends on.
+
+        If transitive=True, returns all upstream tasks leading to task_id.
+        If transitive=False, returns only direct predecessors.
+        """
+        if task_id not in self.task_ids:
+            raise TaskNotFoundError(task_id)
+
+        direct = set(self.predecessors[task_id])
+        if not transitive:
+            return direct
+
+        upstream: set[str] = set()
+        queue = deque(direct)
+        while queue:
+            curr = queue.popleft()
+            if curr not in upstream:
+                upstream.add(curr)
+                queue.extend(self.predecessors[curr])
+        return upstream

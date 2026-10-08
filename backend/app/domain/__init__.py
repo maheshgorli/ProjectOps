@@ -1,5 +1,6 @@
 """ProjectOps Pure Domain Engine package."""
 
+from backend.app.domain.assignment import score_member_assignments
 from backend.app.domain.calendar import (
     DEFAULT_DAILY_CAPACITY_HOURS,
     add_working_days,
@@ -12,18 +13,26 @@ from backend.app.domain.calendar import (
     working_days_between,
     working_days_delta,
 )
-from backend.app.domain.clock import Clock, FrozenClock, SystemClock
+from backend.app.domain.clock import Clock, FixedClock, FrozenClock, SystemClock
+from backend.app.domain.critical_path import calculate_critical_path
 from backend.app.domain.graph import (
     CycleDetectedError,
     GraphError,
+    SelfDependencyError,
     TaskGraph,
     TaskNotFoundError,
 )
+from backend.app.domain.impact import calculate_delay_impact
 from backend.app.domain.models import (
+    AssignmentCandidate,
+    CriticalPathData,
     Dependency,
     DependencyType,
+    ImpactReport,
     Member,
     ProjectPlan,
+    Schedule,
+    ScheduleEntry,
     Task,
     TaskStatus,
 )
@@ -32,11 +41,15 @@ from backend.app.domain.scheduler import (
     MemberWorkload,
     ScheduledTask,
     ScheduleResult,
+    SchedulingError,
+    schedule_project,
 )
+from backend.app.domain.workload import calculate_member_workloads
 
 __all__ = [
     "Clock",
     "SystemClock",
+    "FixedClock",
     "FrozenClock",
     "DEFAULT_DAILY_CAPACITY_HOURS",
     "is_working_day",
@@ -57,9 +70,21 @@ __all__ = [
     "GraphError",
     "TaskNotFoundError",
     "CycleDetectedError",
+    "SelfDependencyError",
     "TaskGraph",
-    "ScheduledTask",
+    "CriticalPathData",
+    "calculate_critical_path",
     "MemberWorkload",
+    "calculate_member_workloads",
+    "AssignmentCandidate",
+    "score_member_assignments",
+    "ScheduleEntry",
+    "Schedule",
+    "ScheduledTask",
     "ScheduleResult",
+    "SchedulingError",
+    "schedule_project",
     "DeterministicScheduler",
+    "ImpactReport",
+    "calculate_delay_impact",
 ]

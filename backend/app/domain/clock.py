@@ -27,8 +27,11 @@ class SystemClock:
         return datetime.now(UTC).date()
 
 
-class FrozenClock:
-    """Deterministic, freeze-frame clock for tests, replan simulations, and time traveling."""
+class FixedClock:
+    """Deterministic fixed clock for tests, replan simulations, and demos.
+
+    Allows controllable advancement of days and setting explicit timestamps.
+    """
 
     def __init__(self, current: datetime | date) -> None:
         if isinstance(current, date) and not isinstance(current, datetime):
@@ -44,12 +47,19 @@ class FrozenClock:
     def today(self) -> date:
         return self._current.date()
 
-    def advance(self, delta: timedelta) -> None:
-        """Advance the frozen time forward or backward."""
-        self._current += delta
+    def advance(self, delta: timedelta | None = None, days: int = 0, hours: int = 0) -> None:
+        """Advance the fixed time forward or backward."""
+        if delta is not None:
+            self._current += delta
+        if days or hours:
+            self._current += timedelta(days=days, hours=hours)
 
-    def set_time(self, new_time: datetime | date) -> None:
-        """Explicitly reset the frozen clock to a specific timestamp."""
+    def advance_days(self, days: int) -> None:
+        """Advance by an integer number of days."""
+        self._current += timedelta(days=days)
+
+    def set(self, new_time: datetime | date) -> None:
+        """Explicitly reset the clock to a specific timestamp or date."""
         if isinstance(new_time, date) and not isinstance(new_time, datetime):
             self._current = datetime(
                 new_time.year, new_time.month, new_time.day, 0, 0, 0, tzinfo=UTC
@@ -58,3 +68,11 @@ class FrozenClock:
             self._current = new_time.replace(tzinfo=UTC)
         else:
             self._current = new_time
+
+    def set_time(self, new_time: datetime | date) -> None:
+        """Alias for set()."""
+        self.set(new_time)
+
+
+# Backward compatibility alias
+FrozenClock = FixedClock

@@ -1,14 +1,18 @@
-"""Deterministic Critical Path Method (CPM) and Capacity Scheduler.
+"""Deterministic Critical Path Method (CPM) and Resource-Constrained Scheduler.
 
 Rules:
 - Deterministic code owns truth: dates, graphs, critical path, scheduling, workload.
 - Pure Python: No I/O, no DB, no LLM. Takes injectable Clock.
+- Correctness over optimality: uses a priority-rule heuristic (Critical-Path-First).
 """
 
+from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
 
 from backend.app.domain.calendar import (
+    DEFAULT_DAILY_CAPACITY_HOURS,
     add_working_days,
     calculate_task_finish_date,
     calculate_task_start_date,
@@ -16,8 +20,22 @@ from backend.app.domain.calendar import (
     working_days_delta,
 )
 from backend.app.domain.clock import Clock
+from backend.app.domain.critical_path import calculate_critical_path
 from backend.app.domain.graph import TaskGraph
-from backend.app.domain.models import ProjectPlan
+from backend.app.domain.models import (
+    Dependency,
+    Member,
+    ProjectPlan,
+    Schedule,
+    ScheduleEntry,
+    Task,
+)
+
+
+class SchedulingError(Exception):
+    """Raised when an impossible schedule is detected."""
+
+    pass
 
 
 @dataclass(frozen=True)
@@ -61,6 +79,153 @@ class ScheduleResult:
     is_feasible: bool
 
 
+def schedule_project(
+    tasks: dict[str, Task] | Iterable[Task],
+    dependencies: list[Dependency],
+    members: dict[str, Member],
+    project_start_date: date,
+    deadline: date | None = None,
+) -> Schedule:
+    """Resource-constrained deterministic scheduler.
+
+    Priority-Rule Heuristic (Critical-Path-First):
+    1. Validates the DAG for cycles and self-dependencies.
+    2. Runs initial CPM forward/backward passes to determine task slacks.
+    3. Simulates timeline day-by-day forward from project_start_date.
+    4. When member capacity is constrained, ready tasks are prioritized by:
+       - Smallest total slack (critical path first)
+       - Longest duration
+       - Task ID (alphabetical tie-breaker for strict determinism)
+    5. Returns Schedule with entries, end date, and deadline feasibility.
+    """
+    task_dict: dict[str, Task] = {t.id: t for t in tasks} if not isinstance(tasks, dict) else tasks
+    start_date = next_working_day(project_start_date)
+
+    if not task_dict:
+        return Schedule(
+            entries={},
+            project_start_date=start_date,
+            project_end_date=start_date,
+            meets_deadline=True if deadline is None else (start_date <= deadline),
+            deadline=deadline,
+            critical_path=[],
+        )
+
+    # Validate graph structure
+    graph = TaskGraph(task_dict.values(), dependencies)
+    graph.validate_dag()
+
+    # Verify assignees exist in members
+    for t in task_dict.values():
+        if t.assigned_to_id and t.assigned_to_id not in members:
+            raise SchedulingError(f"Task '{t.id}' assigned to unknown member '{t.assigned_to_id}'.")
+
+    # Initial CPM pass to establish heuristic priorities (slack)
+    cpm_results, critical_path = calculate_critical_path(task_dict, dependencies, start_date)
+
+    scheduled_entries: dict[str, ScheduleEntry] = {}
+    completed_dates: dict[str, date] = {}
+    member_busy_until: dict[str, date] = {}
+
+    current_date = start_date
+    unscheduled = set(task_dict.keys())
+
+    # Build dependency lookup
+    dep_lag: dict[tuple[str, str], int] = {
+        (d.predecessor_id, d.successor_id): d.lag_days for d in dependencies
+    }
+
+    max_simulation_days = 2000  # Guard against infinite loops
+    simulation_step = 0
+
+    while unscheduled and simulation_step < max_simulation_days:
+        simulation_step += 1
+        # 1. Identify ready tasks
+        ready_tasks: list[str] = []
+        for tid in unscheduled:
+            preds = graph.predecessors[tid]
+            if all(p in completed_dates for p in preds):
+                # Check lag requirements
+                can_start = True
+                for p in preds:
+                    p_finish = completed_dates[p]
+                    lag = dep_lag.get((p, tid), 0)
+                    min_start = add_working_days(p_finish, 1 + lag)
+                    if current_date < min_start:
+                        can_start = False
+                        break
+                if can_start:
+                    ready_tasks.append(tid)
+
+        # 2. Sort ready tasks using Critical-Path-First priority rule
+        def priority_key(tid: str) -> tuple[int, int, str]:
+            cpm_data = cpm_results.get(tid)
+            slack = cpm_data.total_slack if cpm_data else 9999
+            dur = task_dict[tid].duration_days()
+            return (slack, -dur, tid)
+
+        ready_tasks.sort(key=priority_key)
+
+        # 3. Assign tasks to available members
+        for tid in list(ready_tasks):
+            task = task_dict[tid]
+            assignee_id = task.assigned_to_id
+
+            # Check if assigned member is free
+            if assignee_id:
+                member = members[assignee_id]
+                busy_until = member_busy_until.get(assignee_id)
+                if busy_until and current_date <= busy_until:
+                    # Member is currently busy
+                    continue
+                daily_cap = member.daily_capacity_hours
+            else:
+                daily_cap = DEFAULT_DAILY_CAPACITY_HOURS
+
+            # Schedule this task
+            dur = task.duration_days(daily_cap)
+            t_finish = calculate_task_finish_date(current_date, dur)
+
+            cpm_data = cpm_results.get(tid)
+            is_crit = cpm_data.is_critical if cpm_data else False
+            slack = cpm_data.total_slack if cpm_data else 0
+
+            scheduled_entries[tid] = ScheduleEntry(
+                task_id=tid,
+                start_date=current_date,
+                end_date=t_finish,
+                assignee_id=assignee_id,
+                is_critical=is_crit,
+                slack_days=slack,
+            )
+            completed_dates[tid] = t_finish
+            if assignee_id:
+                member_busy_until[assignee_id] = t_finish
+
+            unscheduled.remove(tid)
+
+        # Advance current date to next working day
+        current_date = add_working_days(current_date, 1)
+
+    if unscheduled:
+        raise SchedulingError(
+            "Failed to schedule tasks due to unresolved resource or dependency "
+            f"contention: {unscheduled}"
+        )
+
+    project_finish = max(e.end_date for e in scheduled_entries.values())
+    meets_deadline = (project_finish <= deadline) if deadline else True
+
+    return Schedule(
+        entries=scheduled_entries,
+        project_start_date=start_date,
+        project_end_date=project_finish,
+        meets_deadline=meets_deadline,
+        deadline=deadline,
+        critical_path=critical_path,
+    )
+
+
 class DeterministicScheduler:
     """Calculates deterministic CPM schedule, critical path, and member workloads."""
 
@@ -73,11 +238,9 @@ class DeterministicScheduler:
         start_date: date | None = None,
     ) -> ScheduleResult:
         """Compute deterministic CPM schedule and capacity allocations."""
-        # 1. Base project start date
         base_start = start_date if start_date is not None else self.clock.today()
         proj_start = next_working_day(base_start)
 
-        # Handle empty plan gracefully
         if not plan.tasks:
             return ScheduleResult(
                 project_start_date=proj_start,
@@ -89,21 +252,17 @@ class DeterministicScheduler:
                 is_feasible=True,
             )
 
-        # 2. Build graph and validate DAG (detect cycles deterministically)
         graph = TaskGraph(tasks=plan.tasks.values(), dependencies=plan.dependencies)
         topo_order = graph.topological_sort()
 
-        # 3. Calculate task durations
         task_durations: dict[str, int] = {}
         for t_id, task in plan.tasks.items():
             member_cap = plan.get_member_capacity(task.assigned_to_id)
             task_durations[t_id] = task.duration_days(member_cap)
 
-        # 4. Forward Pass (Early Start & Early Finish)
         early_start: dict[str, date] = {}
         early_finish: dict[str, date] = {}
 
-        # Map dependencies for quick lookup
         dep_map: dict[tuple[str, str], int] = {
             (d.predecessor_id, d.successor_id): d.lag_days for d in plan.dependencies
         }
@@ -116,7 +275,6 @@ class DeterministicScheduler:
                 earliest_possible = []
                 for p in preds:
                     lag = dep_map.get((p, u), 0)
-                    # Successor starts on next working day after predecessor finishes + lag
                     p_next = add_working_days(early_finish[p], 1 + lag)
                     earliest_possible.append(p_next)
                 es = max(earliest_possible)
@@ -125,25 +283,17 @@ class DeterministicScheduler:
             dur = task_durations[u]
             early_finish[u] = calculate_task_finish_date(es, dur)
 
-        # 5. Determine Project Finish Date
         project_finish = max(early_finish.values())
-
-        # Determine target finish for backward pass
         effective_target = plan.target_completion_date or project_finish
-        if effective_target < project_finish:
-            # Target is tighter than earliest feasible finish
-            backward_finish_bound = effective_target
+        if plan.target_completion_date is not None and plan.target_completion_date < project_finish:
+            backward_finish_bound = plan.target_completion_date
         else:
             backward_finish_bound = max(project_finish, effective_target)
 
-        # 6. Backward Pass (Late Finish & Late Start)
         late_finish: dict[str, date] = {}
         late_start: dict[str, date] = {}
 
-        # Reverse topological order for backward pass
-        rev_topo_order = list(reversed(topo_order))
-
-        for u in rev_topo_order:
+        for u in reversed(topo_order):
             succs = graph.successors[u]
             if not succs:
                 lf = backward_finish_bound
@@ -151,113 +301,92 @@ class DeterministicScheduler:
                 latest_possible = []
                 for s in succs:
                     lag = dep_map.get((u, s), 0)
-                    # Late start minus 1 minus lag
-                    u_latest = add_working_days(late_start[s], -(1 + lag))
-                    latest_possible.append(u_latest)
+                    s_prev = add_working_days(late_start[s], -(1 + lag))
+                    latest_possible.append(s_prev)
                 lf = min(latest_possible)
 
-            late_finish[u] = lf
             dur = task_durations[u]
+            late_finish[u] = lf
             late_start[u] = calculate_task_start_date(lf, dur)
 
-        # 7. Total Float & Critical Path Identification
         scheduled_tasks: dict[str, ScheduledTask] = {}
-        critical_task_ids: set[str] = set()
+        critical_path_tasks: list[str] = []
 
-        for t_id in topo_order:
-            es = early_start[t_id]
-            ls = late_start[t_id]
-            float_days = working_days_delta(es, ls)
-            # A task is on the critical path if float is zero (or <= 0 if behind target)
-            is_critical = float_days <= 0
+        for u in topo_order:
+            es = early_start[u]
+            ef = early_finish[u]
+            ls = late_start[u]
+            lf = late_finish[u]
+            dur = task_durations[u]
+
+            total_float = working_days_delta(es, ls)
+            is_critical = total_float <= 0
+
             if is_critical:
-                critical_task_ids.add(t_id)
+                critical_path_tasks.append(u)
 
-            task_obj = plan.tasks[t_id]
-            overdue = task_obj.is_overdue(self.clock)
+            task_obj = plan.tasks[u]
+            is_overdue = task_obj.is_overdue(self.clock)
 
-            scheduled_tasks[t_id] = ScheduledTask(
-                task_id=t_id,
+            scheduled_tasks[u] = ScheduledTask(
+                task_id=u,
                 early_start=es,
-                early_finish=early_finish[t_id],
+                early_finish=ef,
                 late_start=ls,
-                late_finish=late_finish[t_id],
-                duration_days=task_durations[t_id],
-                total_float=float_days,
+                late_finish=lf,
+                duration_days=dur,
+                total_float=total_float,
                 is_critical=is_critical,
-                is_overdue=overdue,
+                is_overdue=is_overdue,
             )
 
-        # Critical path ordered by topological sequence
-        ordered_critical_path = [t_id for t_id in topo_order if t_id in critical_task_ids]
+        member_workloads: dict[str, MemberWorkload] = {}
+        member_daily_hours: dict[str, dict[date, float]] = defaultdict(lambda: defaultdict(float))
 
-        # 8. Member Workload & Capacity Allocation
-        member_workloads = self._compute_member_workloads(plan, scheduled_tasks)
+        for u, st in scheduled_tasks.items():
+            task = plan.tasks[u]
+            assignee_id = task.assigned_to_id
+            if not assignee_id:
+                continue
 
-        # Feasibility check: project finish <= target completion date (if target set)
+            cap = plan.get_member_capacity(assignee_id)
+            dur_days = st.duration_days
+            hours_per_day = task.estimated_hours / dur_days if dur_days > 0 else 0.0
+
+            curr = st.early_start
+            for _ in range(dur_days):
+                member_daily_hours[assignee_id][curr] += hours_per_day
+                curr = add_working_days(curr, 1)
+
+        for m_id, member in plan.members.items():
+            daily_hours = member_daily_hours.get(m_id, {})
+            total_hours = sum(daily_hours.values())
+            peak_hours = max(daily_hours.values()) if daily_hours else 0.0
+            cap = member.daily_capacity_hours
+
+            overallocated_dates = [d for d, h in sorted(daily_hours.items()) if h > cap]
+            is_overallocated = len(overallocated_dates) > 0
+
+            member_workloads[m_id] = MemberWorkload(
+                member_id=m_id,
+                capacity_hours_per_day=cap,
+                total_assigned_hours=round(total_hours, 2),
+                daily_allocated_hours={d: round(h, 2) for d, h in sorted(daily_hours.items())},
+                peak_daily_hours=round(peak_hours, 2),
+                is_overallocated=is_overallocated,
+                overallocated_dates=overallocated_dates,
+            )
+
         is_feasible = True
-        if plan.target_completion_date is not None and project_finish > plan.target_completion_date:
-            is_feasible = False
+        if plan.target_completion_date is not None:
+            is_feasible = project_finish <= plan.target_completion_date
 
         return ScheduleResult(
             project_start_date=proj_start,
             project_finish_date=project_finish,
             target_completion_date=plan.target_completion_date,
             scheduled_tasks=scheduled_tasks,
-            critical_path=ordered_critical_path,
+            critical_path=critical_path_tasks,
             member_workloads=member_workloads,
             is_feasible=is_feasible,
         )
-
-    def _compute_member_workloads(
-        self,
-        plan: ProjectPlan,
-        scheduled_tasks: dict[str, ScheduledTask],
-    ) -> dict[str, MemberWorkload]:
-        """Compute per-member daily capacity utilization and flag over-allocations."""
-        workloads: dict[str, MemberWorkload] = {}
-
-        # Initialize workloads for all known members in plan
-        for m_id, member in plan.members.items():
-            workloads[m_id] = MemberWorkload(
-                member_id=m_id,
-                capacity_hours_per_day=member.daily_capacity_hours,
-            )
-
-        # Accumulate daily hours from scheduled tasks
-        for t_id, st in scheduled_tasks.items():
-            task = plan.tasks[t_id]
-            if not task.assigned_to_id:
-                continue
-
-            m_id = task.assigned_to_id
-            if m_id not in workloads:
-                workloads[m_id] = MemberWorkload(
-                    member_id=m_id,
-                    capacity_hours_per_day=plan.get_member_capacity(m_id),
-                )
-
-            mw = workloads[m_id]
-            mw.total_assigned_hours += task.estimated_hours
-
-            dur = max(1, st.duration_days)
-            daily_rate = task.estimated_hours / dur
-
-            # Distribute rate over each working day from early_start to early_finish
-            curr = st.early_start
-            while curr <= st.early_finish:
-                existing = mw.daily_allocated_hours.get(curr, 0.0)
-                mw.daily_allocated_hours[curr] = existing + daily_rate
-                curr = add_working_days(curr, 1)
-
-        # Analyze over-allocations and peaks
-        for mw in workloads.values():
-            for day, hours in mw.daily_allocated_hours.items():
-                if hours > mw.peak_daily_hours:
-                    mw.peak_daily_hours = hours
-                if hours > mw.capacity_hours_per_day + 1e-6:
-                    mw.is_overallocated = True
-                    mw.overallocated_dates.append(day)
-            mw.overallocated_dates.sort()
-
-        return workloads

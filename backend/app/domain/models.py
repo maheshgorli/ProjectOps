@@ -15,8 +15,8 @@ from backend.app.domain.clock import Clock
 
 
 class TaskStatus(StrEnum):
-    """
-    Valid task statuses.
+    """Valid task statuses.
+
     Rule: OVERDUE is strictly a derived property, never a stored status.
     """
 
@@ -47,17 +47,23 @@ class Dependency:
 
 @dataclass(frozen=True)
 class Member:
-    """Team member with daily working capacity in hours."""
+    """Team member with daily working capacity, skills, and availability."""
 
     id: str
     name: str
     role: str = "engineer"
+    skills: list[str] = field(default_factory=list)
     daily_capacity_hours: float = DEFAULT_DAILY_CAPACITY_HOURS
+    max_parallel_tasks: int = 1
 
     def __post_init__(self) -> None:
         if self.daily_capacity_hours <= 0:
             raise ValueError(
                 f"Member daily capacity must be positive, got {self.daily_capacity_hours}"
+            )
+        if self.max_parallel_tasks <= 0:
+            raise ValueError(
+                f"Member max parallel tasks must be positive, got {self.max_parallel_tasks}"
             )
 
 
@@ -70,24 +76,100 @@ class Task:
     description: str = ""
     status: TaskStatus = TaskStatus.TODO
     estimated_hours: float = 8.0
+    duration_working_days: int | None = None
+    required_skills: list[str] = field(default_factory=list)
     assigned_to_id: str | None = None
     due_date: date | None = None
     start_date: date | None = None
     completed_at: datetime | None = None
 
     def is_overdue(self, clock: Clock) -> bool:
-        """
-        Derived property: A task is overdue if it is not COMPLETED
-        and the clock date is past the due_date.
-        Never stored in the database.
+        """Derived property: A task is overdue if it is not COMPLETED
+
+        and the clock date is past the due_date. Never stored in the database.
         """
         if self.status == TaskStatus.COMPLETED or self.due_date is None:
             return False
         return clock.today() > self.due_date
 
     def duration_days(self, daily_capacity_hours: float = DEFAULT_DAILY_CAPACITY_HOURS) -> int:
-        """Calculate duration in working days given estimated hours and member capacity."""
+        """Calculate duration in working days given estimated hours or explicit duration."""
+        if self.duration_working_days is not None and self.duration_working_days >= 0:
+            return self.duration_working_days
         return hours_to_working_days(self.estimated_hours, daily_capacity_hours)
+
+
+@dataclass(frozen=True)
+class CriticalPathData:
+    """CPM calculation result for a single task."""
+
+    task_id: str
+    early_start: date
+    early_finish: date
+    late_start: date
+    late_finish: date
+    total_slack: int
+    is_critical: bool
+
+
+@dataclass(frozen=True)
+class ScheduleEntry:
+    """Scheduled task time window."""
+
+    task_id: str
+    start_date: date
+    end_date: date
+    assignee_id: str | None = None
+    is_critical: bool = False
+    slack_days: int = 0
+
+
+@dataclass(frozen=True)
+class Schedule:
+    """Result of deterministic schedule computation."""
+
+    entries: dict[str, ScheduleEntry]
+    project_start_date: date
+    project_end_date: date
+    meets_deadline: bool
+    deadline: date | None = None
+    critical_path: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MemberWorkload:
+    """Resource utilization and overload metrics for a team member."""
+
+    member_id: str
+    period_start: date
+    period_end: date
+    assigned_hours: float
+    available_hours: float
+    utilization_rate: float
+    is_overloaded: bool
+
+
+@dataclass(frozen=True)
+class AssignmentCandidate:
+    """Scored assignment recommendation for a task."""
+
+    member_id: str
+    total_score: float
+    breakdown: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ImpactReport:
+    """Report detailing projected impact of delaying a task."""
+
+    delayed_task_id: str
+    delay_days: int
+    directly_affected_task_ids: list[str]
+    indirectly_affected_task_ids: list[str]
+    affected_member_ids: list[str]
+    original_project_end_date: date
+    projected_project_end_date: date
+    end_date_shift_working_days: int
 
 
 @dataclass
