@@ -2,7 +2,7 @@
 name = "projectops"
 version = "0.1.0"
 description = "Autonomous multi-agent project execution and risk management system"
-readme = "../AGENTS.md"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
@@ -39,6 +39,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+dev-mode-dirs = [".."]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

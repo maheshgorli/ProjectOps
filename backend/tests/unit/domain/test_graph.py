@@ -1,7 +1,6 @@
 """Unit tests for TaskGraph, cycle detection, self-loops, and topological sorting."""
 
 import pytest
-
 from backend.app.domain.graph import (
     CycleDetectedError,
     SelfDependencyError,

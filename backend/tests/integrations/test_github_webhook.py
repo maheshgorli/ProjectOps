@@ -7,7 +7,6 @@ import os
 
 import httpx
 import pytest
-
 from backend.app.integrations.github.service import verify_github_signature
 
 

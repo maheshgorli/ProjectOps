@@ -1,14 +1,14 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
+import backend.app.models  # noqa: F401 - ensure all ORM models are registered
+from backend.app.db.base import Base
+from backend.app.db.session import get_database_url
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-import backend.app.models  # noqa: F401 - ensure all ORM models are registered
-from backend.app.db.base import Base
-from backend.app.db.session import get_database_url
+from alembic import context
 
 config = context.config
 

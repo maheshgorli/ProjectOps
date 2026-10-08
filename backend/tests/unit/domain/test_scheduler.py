@@ -3,7 +3,6 @@
 from datetime import date
 
 import pytest
-
 from backend.app.domain.models import Member, Task
 from backend.app.domain.scheduler import SchedulingError, schedule_project
 

@@ -2,9 +2,6 @@
 
 from datetime import date
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
-
 from backend.app.domain.calendar import (
     add_working_days,
     calculate_task_finish_date,
@@ -13,6 +10,8 @@ from backend.app.domain.calendar import (
 )
 from backend.app.domain.models import Dependency, Member, Task
 from backend.app.domain.scheduler import schedule_project
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # Safe date strategy (within modern years)
 date_strategy = st.dates(min_value=date(2025, 1, 1), max_value=date(2035, 12, 31))
