@@ -27,6 +27,7 @@ from backend.app.domain.scheduler import DeterministicScheduler
 from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
+from backend.app.repositories.proposal_repository import ProposalRepository
 from backend.app.schemas.mappers import domain_plan_to_response
 from backend.app.schemas.risk import ReplanCandidateResponse
 
@@ -196,7 +197,20 @@ class ExecutionLoopEngine:
             generator = ReplanCandidateGenerator(self.clock)
             candidate: ReplanCandidate = generator.generate_mitigation_candidate(active_plan)
 
+            plan_resp = domain_plan_to_response(candidate.candidate_plan)
+            proposal_repo = ProposalRepository(session)
+            await proposal_repo.supersede_pending_proposals(project_id)
+            proposal = await proposal_repo.create_proposal(
+                project_id=project_id,
+                baseline_version=active_plan.version,
+                candidate_plan=plan_resp.model_dump(mode="json"),
+                risks_addressed=candidate.mitigation_notes,
+                explanation=f"Autonomous loop mitigation replan on v{active_plan.version}",
+                created_by="agent_loop",
+            )
+
             candidate_response = ReplanCandidateResponse(
+                proposal_id=proposal.id,
                 project_id=project_id,
                 baseline_version=active_plan.version,
                 proposed_version=candidate.candidate_plan.version,
@@ -205,7 +219,7 @@ class ExecutionLoopEngine:
                 finish_date_delta_days=candidate.finish_date_delta_days,
                 resolved_risks_count=candidate.resolved_risks_count,
                 mitigation_notes=candidate.mitigation_notes,
-                proposed_plan=domain_plan_to_response(candidate.candidate_plan),
+                proposed_plan=plan_resp,
             )
 
             # Rule 4: Replanning requires human approval. Never silently change a plan.
@@ -214,12 +228,14 @@ class ExecutionLoopEngine:
                 loop_stage="REPLAN",
                 status="AWAITING_APPROVAL",
                 summary=(
-                    f"Candidate replan v{candidate.candidate_plan.version} generated "
+                    f"Candidate replan proposal {proposal.id} "
+                    f"(v{candidate.candidate_plan.version}) generated "
                     f"(mitigates {candidate.resolved_risks_count} risks). "
                     "Awaiting human approval."
                 ),
                 details_json=json.dumps(
                     {
+                        "proposal_id": proposal.id,
                         "proposed_version": candidate.candidate_plan.version,
                         "finish_date_delta_days": candidate.finish_date_delta_days,
                         "resolved_risks_count": candidate.resolved_risks_count,

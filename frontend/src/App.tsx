@@ -213,14 +213,18 @@ export function App() {
     }
   };
 
-  // Human Approval Action
+  // Human Approval Action (Server Proposal ID - Core Principle 4 & P0-1 fix)
   const handleApproveReplan = async (rationale: string, decidedBy: string) => {
     if (!selectedProject || !replanCandidate) return;
+    if (!replanCandidate.proposal_id) {
+      showToast('Missing server proposal ID. Please re-propose replan.', 'error');
+      return;
+    }
     setIsSubmittingApproval(true);
     try {
       const result = await api.approveReplan(
         selectedProject.id,
-        replanCandidate.proposed_plan,
+        replanCandidate.proposal_id,
         rationale,
         decidedBy,
       );
@@ -238,10 +242,14 @@ export function App() {
 
   // Human Rejection Action
   const handleRejectReplan = async (rationale: string, decidedBy: string) => {
-    if (!selectedProject) return;
+    if (!selectedProject || !replanCandidate) return;
+    if (!replanCandidate.proposal_id) {
+      showToast('Missing server proposal ID. Please re-propose replan.', 'error');
+      return;
+    }
     setIsSubmittingApproval(true);
     try {
-      await api.rejectReplan(selectedProject.id, rationale, decidedBy);
+      await api.rejectReplan(selectedProject.id, replanCandidate.proposal_id, rationale, decidedBy);
       showToast('Replan proposal rejected. Current baseline remains active.', 'info');
       setIsApprovalModalOpen(false);
       setReplanCandidate(null);

@@ -111,6 +111,7 @@ export interface RiskAnalysis {
 }
 
 export interface ReplanCandidate {
+  proposal_id?: string;
   project_id: string;
   baseline_version: number;
   proposed_version: number;
@@ -121,6 +122,22 @@ export interface ReplanCandidate {
   mitigation_notes: string[];
   proposed_plan: ProjectPlan;
 }
+
+export interface ReplanProposal {
+  id: string;
+  project_id: string;
+  baseline_version: number;
+  candidate_plan: ProjectPlan;
+  risks_addressed: string[];
+  explanation: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  created_by: string;
+  created_at: string;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  rationale?: string | null;
+}
+
 
 export interface DecisionRecord {
   id: string;

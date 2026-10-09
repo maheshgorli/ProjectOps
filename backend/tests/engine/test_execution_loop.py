@@ -92,7 +92,7 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
         f"/api/v1/projects/{project_id}/members",
         json={"name": "Bob Support", "role": "engineer", "daily_capacity_hours": 8.0},
     )
-    bob_id = m2_res.json()["id"]
+    assert m2_res.json()["id"] is not None
 
     # Alice assigned 2 parallel 8h tasks scheduled concurrently -> capacity overload!
     plan_payload = {
@@ -139,25 +139,11 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
     assert loop_status["current_status"] == "AWAITING_APPROVAL"
     assert loop_status["requires_human_approval"] is True
 
-    # 4. Human Approval Gateway: Approve candidate replan
-    # Prepare approval payload using candidate plan (reassigning one task to Bob)
-    candidate_tasks = [
-        {
-            "id": t["id"],
-            "title": t["title"],
-            "status": t["status"],
-            "estimated_hours": t["estimated_hours"],
-            "assigned_to_id": bob_id if t["id"] == "T2" else alice_id,
-        }
-        for t in candidate["proposed_plan"]["tasks"]
-    ]
+    # 4. Human Approval Gateway: Approve server-stored candidate replan
+    proposal_id = candidate["proposal_id"]
+    assert proposal_id is not None
     approval_payload = {
-        "candidate_plan": {
-            "version": 2,
-            "name": "Mitigated Plan v2",
-            "tasks": candidate_tasks,
-            "dependencies": [],
-        },
+        "proposal_id": proposal_id,
         "decision_rationale": "Reassigning T2 to Bob to alleviate Alice's capacity overload.",
         "decided_by": "Engineering Manager Dave",
     }

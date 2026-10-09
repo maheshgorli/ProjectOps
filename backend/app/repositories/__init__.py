@@ -11,6 +11,7 @@ from backend.app.repositories.plan_repository import (
     PlanRepository,
 )
 from backend.app.repositories.project_repository import ProjectRepository
+from backend.app.repositories.proposal_repository import ProposalRepository
 
 __all__ = [
     "PlanRepository",
@@ -18,6 +19,7 @@ __all__ = [
     "HistoryRepository",
     "ProjectRepository",
     "ExecutionRepository",
+    "ProposalRepository",
     "domain_to_orm_plan",
     "orm_to_domain_plan",
     "domain_to_orm_member",

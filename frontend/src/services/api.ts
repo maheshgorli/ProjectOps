@@ -14,6 +14,7 @@ import type {
   Project,
   ProjectPlan,
   ReplanCandidate,
+  ReplanProposal,
   RiskAnalysis,
   ScheduleResult,
   TaskMerged,
@@ -151,18 +152,31 @@ export const api = {
     return handleResponse<ReplanCandidate>(res);
   },
 
-  // Human Approval Gateway
+  // Human Approval Gateway (Server-Side Proposals - Core Principle 4 & P0-1 fix)
+  async listProposals(projectId: string, status?: string): Promise<ReplanProposal[]> {
+    const url = status
+      ? `${BASE_URL}/projects/${projectId}/replan/proposals?status=${status}`
+      : `${BASE_URL}/projects/${projectId}/replan/proposals`;
+    const res = await fetch(url);
+    return handleResponse<ReplanProposal[]>(res);
+  },
+
+  async getProposal(projectId: string, proposalId: string): Promise<ReplanProposal> {
+    const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/proposals/${proposalId}`);
+    return handleResponse<ReplanProposal>(res);
+  },
+
   async approveReplan(
     projectId: string,
-    candidatePlan: unknown,
+    proposalId: string,
     decisionRationale: string,
     decidedBy: string,
-  ): Promise<{ status: string; new_version: number; summary: string; plan: ProjectPlan }> {
+  ): Promise<{ status: string; proposal_id: string; previous_version: number; new_version: number; summary: string; plan: ProjectPlan }> {
     const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        candidate_plan: candidatePlan,
+        proposal_id: proposalId,
         decision_rationale: decisionRationale,
         decided_by: decidedBy,
       }),
@@ -172,13 +186,15 @@ export const api = {
 
   async rejectReplan(
     projectId: string,
+    proposalId: string,
     rationale: string,
     decidedBy: string,
-  ): Promise<{ status: string; current_version: number }> {
+  ): Promise<{ status: string; proposal_id: string; current_version: number }> {
     const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        proposal_id: proposalId,
         rationale,
         decided_by: decidedBy,
       }),

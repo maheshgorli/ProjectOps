@@ -79,3 +79,42 @@ class ProjectRepository:
         stmt = select(MemberORM).where(MemberORM.project_id == project_id)
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def get_member(self, project_id: str, member_id: str) -> MemberORM | None:
+        """Fetch a specific member by project and member ID."""
+        stmt = select(MemberORM).where(
+            MemberORM.project_id == project_id,
+            MemberORM.id == member_id,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_member(
+        self,
+        project_id: str,
+        member_id: str,
+        name: str | None = None,
+        role: str | None = None,
+        daily_capacity_hours: float | None = None,
+    ) -> MemberORM | None:
+        """Update an existing team member's details."""
+        member = await self.get_member(project_id, member_id)
+        if not member:
+            return None
+        if name is not None:
+            member.name = name
+        if role is not None:
+            member.role = role
+        if daily_capacity_hours is not None:
+            member.daily_capacity_hours = daily_capacity_hours
+        await self.session.flush()
+        return member
+
+    async def delete_member(self, project_id: str, member_id: str) -> bool:
+        """Delete a team member."""
+        member = await self.get_member(project_id, member_id)
+        if not member:
+            return False
+        await self.session.delete(member)
+        await self.session.flush()
+        return True

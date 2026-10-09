@@ -41,7 +41,7 @@ def domain_to_orm_plan(plan: ProjectPlan, is_active: bool = True) -> ProjectPlan
             task_id=task.id,
             title=task.title,
             description=task.description,
-            status=task.status.value,
+            status=task.status.value if hasattr(task.status, "value") else str(task.status),
             estimated_hours=task.estimated_hours,
             assigned_to_id=task.assigned_to_id,
             due_date=task.due_date,
@@ -56,7 +56,7 @@ def domain_to_orm_plan(plan: ProjectPlan, is_active: bool = True) -> ProjectPlan
             plan_id=plan_id,
             predecessor_id=dep.predecessor_id,
             successor_id=dep.successor_id,
-            dep_type=dep.dep_type.value,
+            dep_type=dep.dep_type.value if hasattr(dep.dep_type, "value") else str(dep.dep_type),
             lag_days=dep.lag_days,
         )
         orm_plan.dependencies.append(orm_dep)

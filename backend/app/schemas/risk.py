@@ -32,6 +32,7 @@ class RiskAnalysisResponse(BaseModel):
 class ReplanCandidateResponse(BaseModel):
     """Proposed candidate replan with deterministic impact evaluation."""
 
+    proposal_id: str | None = None
     project_id: str
     baseline_version: int
     proposed_version: int

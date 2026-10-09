@@ -12,6 +12,7 @@ from backend.app.domain.risk.replan_generator import ReplanCandidateGenerator
 from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
+from backend.app.repositories.proposal_repository import ProposalRepository
 from backend.app.schemas.mappers import domain_plan_to_response as _domain_plan_to_response
 from backend.app.schemas.risk import (
     DetectedRiskSchema,
@@ -91,7 +92,7 @@ async def propose_replan_mitigation(
     Generate a deterministically simulated replan candidate to mitigate risks.
 
     Rule 3 & 4: Replans are simulated by deterministic scheduler; require human approval.
-    Does NOT write new plan version to DB.
+    Creates a server-stored PENDING proposal in replan_proposals.
     """
     plan_repo = PlanRepository(session)
     active_plan = await plan_repo.get_active_plan(project_id)
@@ -101,10 +102,27 @@ async def propose_replan_mitigation(
             detail=f"No active plan found for project '{project_id}'.",
         )
 
+    exec_repo = ExecutionRepository(session)
+    active_plan = await exec_repo.get_plan_with_execution_state(project_id, active_plan)
+
     generator = ReplanCandidateGenerator(SystemClock())
     candidate = generator.generate_mitigation_candidate(active_plan)
 
+    plan_response = _domain_plan_to_response(candidate.candidate_plan)
+    proposal_repo = ProposalRepository(session)
+    await proposal_repo.supersede_pending_proposals(project_id)
+    proposal = await proposal_repo.create_proposal(
+        project_id=project_id,
+        baseline_version=active_plan.version,
+        candidate_plan=plan_response.model_dump(mode="json"),
+        risks_addressed=candidate.mitigation_notes,
+        explanation=f"Deterministic mitigation replan on v{active_plan.version}",
+        created_by="engine",
+    )
+    await session.commit()
+
     return ReplanCandidateResponse(
+        proposal_id=proposal.id,
         project_id=project_id,
         baseline_version=active_plan.version,
         proposed_version=candidate.candidate_plan.version,
@@ -113,5 +131,5 @@ async def propose_replan_mitigation(
         finish_date_delta_days=candidate.finish_date_delta_days,
         resolved_risks_count=candidate.resolved_risks_count,
         mitigation_notes=candidate.mitigation_notes,
-        proposed_plan=_domain_plan_to_response(candidate.candidate_plan),
+        proposed_plan=plan_response,
     )

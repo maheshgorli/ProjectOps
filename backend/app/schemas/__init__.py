@@ -8,6 +8,13 @@ from backend.app.schemas.ai import (
     ReplanExplanationRequest,
     ReplanExplanationResponse,
 )
+from backend.app.schemas.approval import (
+    ReplanApprovalRequest,
+    ReplanApprovalResponse,
+    ReplanProposalResponse,
+    ReplanRejectionRequest,
+    ReplanRejectionResponse,
+)
 from backend.app.schemas.history import (
     DecisionCreateRequest,
     DecisionResponse,
@@ -23,6 +30,13 @@ from backend.app.schemas.plan import (
     PlanVersionListResponse,
     TaskCreateSchema,
     TaskResponseSchema,
+)
+from backend.app.schemas.plan_edit import (
+    DependencyCreateRequest,
+    MemberUpdateRequest,
+    PlanMutationResponse,
+    TaskCreateRequest,
+    TaskEditRequest,
 )
 from backend.app.schemas.project import (
     MemberCreateRequest,
@@ -82,4 +96,14 @@ __all__ = [
     "TaskStatusUpdateRequest",
     "TaskMergedResponse",
     "ALLOWED_STATUS_TRANSITIONS",
+    "ReplanApprovalRequest",
+    "ReplanApprovalResponse",
+    "ReplanRejectionRequest",
+    "ReplanRejectionResponse",
+    "ReplanProposalResponse",
+    "TaskCreateRequest",
+    "TaskEditRequest",
+    "DependencyCreateRequest",
+    "MemberUpdateRequest",
+    "PlanMutationResponse",
 ]
