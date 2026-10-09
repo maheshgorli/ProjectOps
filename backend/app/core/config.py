@@ -1,18 +1,37 @@
 """Application configuration settings."""
 
-import os
-
-from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseModel):
+class Settings(BaseSettings):
     """Core settings for ProjectOps."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_name: str = "ProjectOps"
     api_v1_prefix: str = "/api/v1"
-    environment: str = os.getenv("ENVIRONMENT", "development")
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
-    database_url: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./projectops.db")
+    environment: str = "development"
+    log_level: str = "INFO"
+    database_url: str = "sqlite+aiosqlite:///./projectops.db"
+
+    # LLM Settings
+    # Default provider is claude per AGENTS.md; "mock" must be explicitly configured
+    llm_provider: str = "claude"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-7-sonnet-20250219"
+
+    # GitHub Webhook Settings
+    # No fallback secret allowed; must be explicitly configured
+    github_webhook_secret: str | None = None
+    github_require_signature: bool = True
+
+    # CORS Settings
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 settings = Settings()
+
