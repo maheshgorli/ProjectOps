@@ -16,6 +16,8 @@ import type {
   ReplanCandidate,
   RiskAnalysis,
   ScheduleResult,
+  TaskMerged,
+  TaskStatusUpdateRequest,
 } from '../types/api';
 
 const BASE_URL = '/api/v1';
@@ -98,6 +100,30 @@ export const api = {
       body: JSON.stringify(planData),
     });
     return handleResponse<ProjectPlan>(res);
+  },
+
+  // Task Execution States
+  async getTasks(projectId: string): Promise<TaskMerged[]> {
+    const res = await fetch(`${BASE_URL}/projects/${projectId}/tasks`);
+    return handleResponse<TaskMerged[]>(res);
+  },
+
+  async getTask(projectId: string, taskId: string): Promise<TaskMerged> {
+    const res = await fetch(`${BASE_URL}/projects/${projectId}/tasks/${taskId}`);
+    return handleResponse<TaskMerged>(res);
+  },
+
+  async updateTaskStatus(
+    projectId: string,
+    taskId: string,
+    payload: TaskStatusUpdateRequest,
+  ): Promise<TaskMerged> {
+    const res = await fetch(`${BASE_URL}/projects/${projectId}/tasks/${taskId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<TaskMerged>(res);
   },
 
   // Scheduling

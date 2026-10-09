@@ -42,6 +42,11 @@ from backend.app.schemas.schedule import (
     ScheduleSimulationRequest,
     ScheduleSimulationResponse,
 )
+from backend.app.schemas.task import (
+    ALLOWED_STATUS_TRANSITIONS,
+    TaskMergedResponse,
+    TaskStatusUpdateRequest,
+)
 
 __all__ = [
     "ProjectCreateRequest",
@@ -74,4 +79,7 @@ __all__ = [
     "GoalDecompositionResponse",
     "ReplanExplanationRequest",
     "ReplanExplanationResponse",
+    "TaskStatusUpdateRequest",
+    "TaskMergedResponse",
+    "ALLOWED_STATUS_TRANSITIONS",
 ]

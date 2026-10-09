@@ -24,6 +24,7 @@ from backend.app.domain.risk.replan_generator import (
     ReplanCandidateGenerator,
 )
 from backend.app.domain.scheduler import DeterministicScheduler
+from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
 from backend.app.schemas.mappers import domain_plan_to_response
@@ -120,6 +121,9 @@ class ExecutionLoopEngine:
                 actionable_tasks=[],
                 requires_human_approval=False,
             )
+
+        exec_repo = ExecutionRepository(session)
+        active_plan = await exec_repo.get_plan_with_execution_state(project_id, active_plan)
 
         graph = TaskGraph(active_plan.tasks.values(), active_plan.dependencies)
         graph.validate_dag()

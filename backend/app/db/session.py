@@ -10,14 +10,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from backend.app.core.config import settings
 from backend.app.db.base import Base
-
-DEFAULT_DATABASE_URL = "sqlite+aiosqlite:///./projectops.db"
 
 
 def get_database_url() -> str:
-    """Retrieve the database URL from environment or return default SQLite URL."""
-    return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+    """Retrieve the database URL from settings or environment."""
+    return os.getenv("DATABASE_URL", settings.database_url)
 
 
 def create_engine(url: str | None = None) -> AsyncEngine:

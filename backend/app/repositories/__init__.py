@@ -1,5 +1,4 @@
-"""Repositories package exports."""
-
+from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.mappers import (
     domain_to_orm_member,
@@ -18,6 +17,7 @@ __all__ = [
     "PlanImmutableError",
     "HistoryRepository",
     "ProjectRepository",
+    "ExecutionRepository",
     "domain_to_orm_plan",
     "orm_to_domain_plan",
     "domain_to_orm_member",

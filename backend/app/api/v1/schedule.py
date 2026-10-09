@@ -15,6 +15,7 @@ from backend.app.domain.models import (
     Task,
 )
 from backend.app.domain.scheduler import DeterministicScheduler, ScheduleResult
+from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.plan_repository import PlanRepository
 from backend.app.schemas.schedule import (
     MemberWorkloadResponse,
@@ -80,6 +81,9 @@ async def get_schedule(
         plan = await plan_repo.get_plan_by_version(project_id, version)
     else:
         plan = await plan_repo.get_active_plan(project_id)
+        if plan:
+            exec_repo = ExecutionRepository(session)
+            plan = await exec_repo.get_plan_with_execution_state(project_id, plan)
 
     if not plan:
         raise HTTPException(
@@ -117,6 +121,8 @@ async def simulate_schedule(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No active baseline plan found for project '{project_id}'.",
         )
+    exec_repo = ExecutionRepository(session)
+    active_plan = await exec_repo.get_plan_with_execution_state(project_id, active_plan)
 
     scheduler = DeterministicScheduler(SystemClock())
     baseline_result = scheduler.schedule(active_plan, start_date=req.start_date)

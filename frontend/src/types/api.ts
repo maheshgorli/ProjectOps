@@ -197,3 +197,48 @@ export interface AIInfo {
   is_mock: boolean;
 }
 
+export interface TaskExecutionState {
+  task_id: string;
+  project_id: string;
+  status: TaskStatus;
+  actual_start: string | null;
+  actual_finish: string | null;
+  actual_hours: number;
+  percent_complete: number;
+  blocked_reason: string | null;
+  updated_by: string;
+  updated_at: string;
+}
+
+export interface TaskMerged {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  estimated_hours: number;
+  assigned_to_id: string | null;
+  planned_start_date: string | null;
+  planned_due_date: string | null;
+  actual_start: string | null;
+  actual_finish: string | null;
+  actual_hours: number;
+  percent_complete: number;
+  blocked_reason: string | null;
+  is_overdue: boolean;
+  dependencies: string[];
+  updated_by: string;
+  updated_at: string;
+}
+
+export interface TaskStatusUpdateRequest {
+  status: TaskStatus;
+  actual_start?: string | null;
+  actual_finish?: string | null;
+  actual_hours?: number | null;
+  percent_complete?: number | null;
+  blocked_reason?: string | null;
+  evidence_notes?: string;
+  updated_by?: string;
+}
+

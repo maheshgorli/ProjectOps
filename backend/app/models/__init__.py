@@ -1,5 +1,4 @@
-"""ORM models package exports."""
-
+from backend.app.models.execution import TaskExecutionStateORM
 from backend.app.models.history import (
     AgentRunORM,
     DecisionRecordORM,
@@ -16,6 +15,7 @@ from backend.app.models.project import (
     MemberORM,
     ProjectORM,
 )
+from backend.app.models.proposal import ReplanProposalORM
 
 __all__ = [
     "ProjectORM",
@@ -28,4 +28,7 @@ __all__ = [
     "RiskEventORM",
     "AgentRunORM",
     "GitHubEventORM",
+    "TaskExecutionStateORM",
+    "ReplanProposalORM",
 ]
+
