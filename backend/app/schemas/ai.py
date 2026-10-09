@@ -54,3 +54,12 @@ class ReplanExplanationResponse(BaseModel):
 
     project_id: str
     explanation: str
+
+
+class AIInfoResponse(BaseModel):
+    """Metadata describing the currently active LLM provider configuration."""
+
+    provider: str
+    model: str
+    is_mock: bool
+

@@ -11,6 +11,8 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
+from backend.app.core.config import settings
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -41,10 +43,10 @@ class ClaudeProvider:
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str | None = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
-        self.model = model
+        self.api_key = api_key or settings.anthropic_api_key or ""
+        self.model = model or settings.anthropic_model
         self._client = None
 
     def _get_client(self):
@@ -171,10 +173,26 @@ class MockLLMProvider:
 
 
 def get_llm_provider() -> LLMProvider:
-    """Provider factory returning ClaudeProvider if API key exists, otherwise MockLLMProvider."""
-    provider_type = os.getenv("LLM_PROVIDER", "").lower()
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    """
+    Provider factory returning the configured LLMProvider.
 
-    if provider_type == "mock" or (not api_key and provider_type != "claude"):
+    Enforces:
+    - If LLM_PROVIDER is 'claude', ANTHROPIC_API_KEY is required; raises ValueError if missing.
+    - 'mock' is allowed only when explicitly set via LLM_PROVIDER=mock.
+    - Unknown providers raise ValueError.
+    """
+    provider_type = (settings.llm_provider or "").lower().strip()
+    if provider_type == "mock":
         return MockLLMProvider()
-    return ClaudeProvider(api_key=api_key)
+    if provider_type == "claude":
+        api_key = settings.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY is not configured. "
+                "Set ANTHROPIC_API_KEY or explicitly set LLM_PROVIDER=mock for development."
+            )
+        return ClaudeProvider(api_key=api_key, model=settings.anthropic_model)
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude' or 'mock'."
+    )
+

@@ -6,6 +6,7 @@ import os
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.config import settings
 from backend.app.db.session import get_async_session
 from backend.app.integrations.github.service import (
     GitHubWebhookService,
@@ -41,11 +42,17 @@ async def receive_github_webhook(
             detail=f"Project '{project_id}' not found.",
         )
 
+    webhook_secret = settings.github_webhook_secret or os.getenv("GITHUB_WEBHOOK_SECRET")
+    if not webhook_secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="GITHUB_WEBHOOK_SECRET is not configured on the server. Webhooks cannot be verified.",
+        )
+
     payload_bytes = await request.body()
-    webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET", "projectops_dev_secret")
 
     # Enforce HMAC signature check
-    require_signature = os.getenv("GITHUB_REQUIRE_SIGNATURE", "true").lower() == "true"
+    require_signature = settings.github_require_signature
     if require_signature and (
         not x_hub_signature_256
         or not verify_github_signature(payload_bytes, x_hub_signature_256, webhook_secret)

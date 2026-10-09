@@ -7,14 +7,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.v1 import api_v1_router
-from backend.app.db.session import create_all_tables
+from backend.app.core.config import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup and shutdown lifecycle."""
-    # Ensure database tables exist
-    await create_all_tables()
+    # Alembic migrations are the sole schema source. Table DDL is never auto-created here.
     yield
 
 
@@ -31,10 +30,10 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# Enable CORS for local Vite development frontend
+# Enable CORS for configured frontend origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

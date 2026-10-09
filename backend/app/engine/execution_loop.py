@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.api.v1.plans import _domain_plan_to_response
+from backend.app.schemas.mappers import domain_plan_to_response
 from backend.app.domain.clock import Clock, SystemClock
 from backend.app.domain.graph import TaskGraph
 from backend.app.domain.models import ProjectPlan, TaskStatus
@@ -201,7 +201,7 @@ class ExecutionLoopEngine:
                 finish_date_delta_days=candidate.finish_date_delta_days,
                 resolved_risks_count=candidate.resolved_risks_count,
                 mitigation_notes=candidate.mitigation_notes,
-                proposed_plan=_domain_plan_to_response(candidate.candidate_plan),
+                proposed_plan=domain_plan_to_response(candidate.candidate_plan),
             )
 
             # Rule 4: Replanning requires human approval. Never silently change a plan.

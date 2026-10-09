@@ -45,10 +45,8 @@ class GitHubWebhookService:
     """Ingests and records GitHub webhook events strictly as audit evidence."""
 
     def __init__(self, webhook_secret: str | None = None) -> None:
-        self.webhook_secret = webhook_secret or os.getenv(
-            "GITHUB_WEBHOOK_SECRET",
-            "projectops_dev_secret",
-        )
+        self.webhook_secret = webhook_secret or os.getenv("GITHUB_WEBHOOK_SECRET") or ""
+
 
     def extract_task_ids(self, text: str, valid_task_ids: set[str]) -> set[str]:
         """Find mentions of existing plan task IDs within untrusted commit/PR text."""

@@ -190,3 +190,10 @@ export interface GoalDecompositionResponse {
   tasks: DecomposedTask[];
   explanation: string;
 }
+
+export interface AIInfo {
+  provider: string;
+  model: string;
+  is_mock: boolean;
+}
+

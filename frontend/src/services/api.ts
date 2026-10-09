@@ -5,6 +5,7 @@
 
 import type {
   AgentLoopStatus,
+  AIInfo,
   DecisionRecord,
   GoalDecompositionResponse,
   LoopStepResponse,
@@ -173,20 +174,66 @@ export const api = {
   },
 
   // AI Assistant
+  async getAiInfo(): Promise<AIInfo> {
+    const res = await fetch(`${BASE_URL}/ai/info`);
+    return handleResponse<AIInfo>(res);
+  },
+
   async decomposeGoal(
     projectId: string,
     goal: string,
     availableRoles: string[] = ['lead', 'engineer', 'qa', 'devops'],
   ): Promise<GoalDecompositionResponse> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/ai/decompose-goal`, {
+    const res = await fetch(`${BASE_URL}/ai/decompose-goal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         goal,
-        available_roles: availableRoles,
+        context: `Project ID: ${projectId}. Available roles: ${availableRoles.join(', ')}`,
       }),
     });
-    return handleResponse<GoalDecompositionResponse>(res);
+    interface RawBackendResponse {
+      goal?: string;
+      tasks?: Array<{
+        id: string;
+        title: string;
+        description?: string;
+        estimated_hours?: number;
+        suggested_assignee_role?: string;
+        predecessor_ids?: string[];
+      }>;
+      dependencies?: Array<{
+        predecessor_id: string;
+        successor_id: string;
+      }>;
+      estimated_total_hours?: number;
+      explanation?: string;
+    }
+    const data = await handleResponse<RawBackendResponse>(res);
+    const depsBySuccessor: Record<string, string[]> = {};
+    if (data.dependencies) {
+      for (const d of data.dependencies) {
+        if (!depsBySuccessor[d.successor_id]) {
+          depsBySuccessor[d.successor_id] = [];
+        }
+        depsBySuccessor[d.successor_id].push(d.predecessor_id);
+      }
+    }
+    const tasks = (data.tasks || []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description || '',
+      estimated_hours: t.estimated_hours || 8,
+      suggested_assignee_role: t.suggested_assignee_role || 'engineer',
+      predecessor_ids: t.predecessor_ids || depsBySuccessor[t.id] || [],
+    }));
+    return {
+      goal: data.goal || goal,
+      tasks,
+      explanation:
+        data.explanation ||
+        `Decomposed into ${tasks.length} tasks and ${(data.dependencies || []).length} dependencies (Total ~${data.estimated_total_hours || 0} hrs).`,
+    };
   },
 
   // History & Evidence Streams
