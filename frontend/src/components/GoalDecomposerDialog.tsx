@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Sparkles,
   X,
@@ -7,7 +7,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { DecomposedTask } from '../types/api';
+import type { AIInfo, DecomposedTask } from '../types/api';
 
 interface GoalDecomposerDialogProps {
   isOpen: boolean;
@@ -30,6 +30,13 @@ export const GoalDecomposerDialog: React.FC<GoalDecomposerDialogProps> = ({
   const [decomposedTasks, setDecomposedTasks] = useState<DecomposedTask[]>([]);
   const [explanation, setExplanation] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [aiInfo, setAiInfo] = useState<AIInfo | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.getAiInfo().then(setAiInfo).catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -105,9 +112,22 @@ export const GoalDecomposerDialog: React.FC<GoalDecomposerDialogProps> = ({
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-display text-base font-bold text-white">
-                AI Goal Decomposer Assistant
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-base font-bold text-white">
+                  AI Goal Decomposer Assistant
+                </h2>
+                {aiInfo && (
+                  <span
+                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium border ${
+                      aiInfo.is_mock
+                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                        : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    }`}
+                  >
+                    {aiInfo.is_mock ? 'Mock AI' : `Claude (${aiInfo.model})`}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-indigo-300/80">
                 Rule 2: Decomposes natural language goals into DAG tasks validated by domain engine
               </p>

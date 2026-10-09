@@ -55,3 +55,45 @@ uv run pytest --cov=backend/app/domain
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+---
+
+## Database Migrations
+
+Alembic is the sole source of truth for the database schema. Tables are never automatically created in the application runtime.
+
+```bash
+# Apply all pending migrations (from repository root)
+uv run alembic upgrade head
+
+# Or using the migration runner script
+uv run python scripts/migrate.py head
+
+# Or from backend directory
+cd backend
+uv run alembic upgrade head
+```
+
+---
+
+## Running the Application
+
+### 1. Backend Server
+```bash
+# From repository root or backend/
+uv run uvicorn backend.app.main:app --reload --port 8001
+# Or
+cd backend
+uv run uvicorn app.main:app --reload --port 8001
+```
+
+### 2. Frontend Development Server
+```bash
+# From repository root
+npm run dev
+
+# Or from frontend/
+cd frontend
+npm run dev
+```
+

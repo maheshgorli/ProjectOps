@@ -241,3 +241,25 @@ async def test_github_webhook_errors(client: httpx.AsyncClient):
         },
     )
     assert res.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_github_webhook_fails_when_secret_unset(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from backend.app.core.config import settings
+
+    monkeypatch.setattr(settings, "github_webhook_secret", None)
+    monkeypatch.delenv("GITHUB_WEBHOOK_SECRET", raising=False)
+
+    p = await client.post("/api/v1/projects", json={"name": "No Secret Webhook Project"})
+    p_id = p.json()["id"]
+
+    res = await client.post(
+        f"/api/v1/projects/{p_id}/github/webhook",
+        json={"ref": "main"},
+        headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=xxx"},
+    )
+    assert res.status_code == 500
+    assert "GITHUB_WEBHOOK_SECRET is not configured" in res.json()["detail"]

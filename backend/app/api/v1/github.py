@@ -46,7 +46,10 @@ async def receive_github_webhook(
     if not webhook_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="GITHUB_WEBHOOK_SECRET is not configured on the server. Webhooks cannot be verified.",
+            detail=(
+                "GITHUB_WEBHOOK_SECRET is not configured on the server. "
+                "Webhooks cannot be verified."
+            ),
         )
 
     payload_bytes = await request.body()

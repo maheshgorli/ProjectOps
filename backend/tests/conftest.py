@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 
 import httpx
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -11,9 +12,16 @@ from sqlalchemy.ext.asyncio import (
 )
 
 import backend.app.models  # noqa: F401 - ensure all ORM models are registered
+from backend.app.core.config import settings
 from backend.app.db.base import Base
 from backend.app.db.session import get_async_session
 from backend.app.main import app
+
+
+@pytest.fixture(autouse=True)
+def configure_test_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure test suite defaults to explicit mock LLM provider."""
+    monkeypatch.setattr(settings, "llm_provider", "mock")
 
 
 @pytest_asyncio.fixture

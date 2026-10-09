@@ -15,7 +15,6 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.schemas.mappers import domain_plan_to_response
 from backend.app.domain.clock import Clock, SystemClock
 from backend.app.domain.graph import TaskGraph
 from backend.app.domain.models import ProjectPlan, TaskStatus
@@ -27,6 +26,7 @@ from backend.app.domain.risk.replan_generator import (
 from backend.app.domain.scheduler import DeterministicScheduler
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
+from backend.app.schemas.mappers import domain_plan_to_response
 from backend.app.schemas.risk import ReplanCandidateResponse
 
 

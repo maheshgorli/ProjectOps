@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_async_session
-from backend.app.domain.clock import SystemClock
 from backend.app.domain.graph import CycleDetectedError, TaskGraph, TaskNotFoundError
 from backend.app.domain.models import (
     Dependency,
@@ -20,20 +19,16 @@ from backend.app.repositories.plan_repository import (
     PlanRepository,
 )
 from backend.app.repositories.project_repository import ProjectRepository
+from backend.app.schemas.mappers import domain_plan_to_response
 from backend.app.schemas.plan import (
-    DependencySchema,
     PlanCreateRequest,
     PlanResponseSchema,
     PlanVersionListResponse,
-    TaskResponseSchema,
 )
-
-from backend.app.schemas.mappers import domain_plan_to_response
 
 router = APIRouter(prefix="/projects/{project_id}/plans", tags=["plans"])
 
 _domain_plan_to_response = domain_plan_to_response
-
 
 
 @router.post("", response_model=PlanResponseSchema, status_code=status.HTTP_201_CREATED)

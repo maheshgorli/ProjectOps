@@ -62,4 +62,3 @@ class AIInfoResponse(BaseModel):
     provider: str
     model: str
     is_mock: bool
-

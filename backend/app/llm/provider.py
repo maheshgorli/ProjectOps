@@ -192,7 +192,4 @@ def get_llm_provider() -> LLMProvider:
                 "Set ANTHROPIC_API_KEY or explicitly set LLM_PROVIDER=mock for development."
             )
         return ClaudeProvider(api_key=api_key, model=settings.anthropic_model)
-    raise ValueError(
-        f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude' or 'mock'."
-    )
-
+    raise ValueError(f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude' or 'mock'.")

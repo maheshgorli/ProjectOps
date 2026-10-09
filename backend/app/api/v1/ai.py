@@ -78,7 +78,6 @@ async def decompose_goal_for_project_endpoint(
     return await decompose_goal_endpoint(req)
 
 
-
 @router.post(
     "/projects/{project_id}/replan/explain",
     response_model=ReplanExplanationResponse,

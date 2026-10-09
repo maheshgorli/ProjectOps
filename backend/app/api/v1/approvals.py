@@ -6,7 +6,6 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.schemas.mappers import domain_plan_to_response as _domain_plan_to_response
 from backend.app.db.session import get_async_session
 from backend.app.domain.graph import CycleDetectedError, TaskGraph, TaskNotFoundError
 from backend.app.domain.models import Dependency, Member, ProjectPlan, Task
@@ -19,6 +18,7 @@ from backend.app.schemas.approval import (
     ReplanRejectionRequest,
     ReplanRejectionResponse,
 )
+from backend.app.schemas.mappers import domain_plan_to_response as _domain_plan_to_response
 
 router = APIRouter(prefix="/projects/{project_id}/replan", tags=["approvals"])
 
