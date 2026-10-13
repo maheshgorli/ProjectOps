@@ -8,11 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field
 class ProgressEventCreateRequest(BaseModel):
     """Payload to record a task progress event."""
 
+    model_config = ConfigDict(extra="forbid")
+
     task_id: str = Field(..., min_length=1, max_length=100)
     new_status: str = Field(..., min_length=1, max_length=50)
     previous_status: str | None = None
     evidence_notes: str = Field(default="", max_length=2000)
-    recorded_by: str = Field(default="system", max_length=255)
 
 
 class ProgressEventResponse(BaseModel):
@@ -33,10 +34,11 @@ class ProgressEventResponse(BaseModel):
 class DecisionCreateRequest(BaseModel):
     """Payload to record a governance or replan decision."""
 
+    model_config = ConfigDict(extra="forbid")
+
     decision_type: str = Field(..., min_length=1, max_length=100)
     summary: str = Field(..., min_length=1, max_length=255)
     rationale: str = Field(default="", max_length=4000)
-    decided_by: str = Field(..., min_length=1, max_length=255)
     plan_id: str | None = None
 
 

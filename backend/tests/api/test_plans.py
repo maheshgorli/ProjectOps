@@ -5,15 +5,14 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_create_plan_and_versioning(client: httpx.AsyncClient):
+async def test_create_plan_and_versioning(auth_client: httpx.AsyncClient):
     # 1. Create Project
-    p_res = await client.post("/api/v1/projects", json={"name": "Plan Test Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Plan Test Project"})
     assert p_res.status_code == 201
     project_id = p_res.json()["id"]
 
-    # 2. Post Plan Version 1
+    # 2. Post Plan Version 1 (server assigns version=1, draft/inactive)
     plan_payload_v1 = {
-        "version": 1,
         "name": "Initial Baseline",
         "tasks": [
             {"id": "T1", "title": "Setup repo", "estimated_hours": 8.0, "status": "COMPLETED"},
@@ -28,25 +27,38 @@ async def test_create_plan_and_versioning(client: httpx.AsyncClient):
             }
         ],
     }
-    res_v1 = await client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload_v1)
+    res_v1 = await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload_v1)
     assert res_v1.status_code == 201
     data_v1 = res_v1.json()
     assert data_v1["version"] == 1
     assert len(data_v1["tasks"]) == 2
 
-    # 3. Get Active Plan
-    active_res = await client.get(f"/api/v1/projects/{project_id}/plans/active")
+    # 3. Initially no active plan until activated
+    no_active_res = await auth_client.get(f"/api/v1/projects/{project_id}/plans/active")
+    assert no_active_res.status_code == 404
+
+    # 4. Activate Plan Version 1 (initial activation)
+    act_res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial baseline activation approval"},
+    )
+    assert act_res.status_code == 200
+    assert act_res.json()["version"] == 1
+
+    # Now active plan is Version 1
+    active_res = await auth_client.get(f"/api/v1/projects/{project_id}/plans/active")
     assert active_res.status_code == 200
     assert active_res.json()["version"] == 1
 
-    # 4. Attempt to overwrite Version 1 -> Expect HTTP 409 Conflict
-    conflict_res = await client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload_v1)
-    assert conflict_res.status_code == 409
-    assert "already exists" in conflict_res.json()["detail"].lower()
+    # 5. Attempting to activate again -> Expect HTTP 409 Conflict
+    re_act_res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Attempting second activation"},
+    )
+    assert re_act_res.status_code == 409
 
-    # 5. Post Version 2 (Valid replan snapshot)
+    # 6. Post Version 2 (server assigns version=2, draft)
     plan_payload_v2 = {
-        "version": 2,
         "name": "Replan with testing",
         "tasks": [
             {"id": "T1", "title": "Setup repo", "estimated_hours": 8.0, "status": "COMPLETED"},
@@ -73,28 +85,34 @@ async def test_create_plan_and_versioning(client: httpx.AsyncClient):
             },
         ],
     }
-    res_v2 = await client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload_v2)
+    res_v2 = await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload_v2)
     assert res_v2.status_code == 201
     assert res_v2.json()["version"] == 2
 
-    # 6. Check version list and historical retrieval
-    ver_res = await client.get(f"/api/v1/projects/{project_id}/plans/versions")
+    # Activating version 2 directly fails because active plan exists (must use /replan)
+    v2_act_res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/2/activate",
+        json={"rationale": "Attempting direct activation of replan"},
+    )
+    assert v2_act_res.status_code == 409
+
+    # 7. Check version list and historical retrieval
+    ver_res = await auth_client.get(f"/api/v1/projects/{project_id}/plans/versions")
     assert ver_res.status_code == 200
     assert ver_res.json()["versions"] == [1, 2]
-    assert ver_res.json()["active_version"] == 2
+    assert ver_res.json()["active_version"] == 1
 
-    hist_res = await client.get(f"/api/v1/projects/{project_id}/plans/1")
+    hist_res = await auth_client.get(f"/api/v1/projects/{project_id}/plans/1")
     assert hist_res.status_code == 200
     assert len(hist_res.json()["tasks"]) == 2  # Untouched historical snapshot!
 
 
 @pytest.mark.asyncio
-async def test_create_plan_with_cycle_fails_with_422(client: httpx.AsyncClient):
-    p_res = await client.post("/api/v1/projects", json={"name": "Cycle Project"})
+async def test_create_plan_with_cycle_fails_with_422(auth_client: httpx.AsyncClient):
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Cycle Project"})
     project_id = p_res.json()["id"]
 
     cycle_payload = {
-        "version": 1,
         "name": "Circular Plan",
         "tasks": [
             {"id": "A", "title": "Task A", "estimated_hours": 8.0},
@@ -105,7 +123,7 @@ async def test_create_plan_with_cycle_fails_with_422(client: httpx.AsyncClient):
             {"predecessor_id": "B", "successor_id": "A"},  # Circular dependency!
         ],
     }
-    res = await client.post(f"/api/v1/projects/{project_id}/plans", json=cycle_payload)
+    res = await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=cycle_payload)
     assert res.status_code == 422
     err_body = res.json()["detail"]
     assert "cycle" in err_body

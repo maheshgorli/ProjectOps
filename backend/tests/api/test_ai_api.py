@@ -5,12 +5,12 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_decompose_goal_api(client: httpx.AsyncClient):
+async def test_decompose_goal_api(auth_client: httpx.AsyncClient):
     payload = {
         "goal": "Build responsive billing and invoicing checkout portal",
         "context": "Needs Stripe integration and PDF invoice generation",
     }
-    res = await client.post("/api/v1/ai/decompose-goal", json=payload)
+    res = await auth_client.post("/api/v1/ai/decompose-goal", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert data["goal"] == payload["goal"]
@@ -21,9 +21,9 @@ async def test_decompose_goal_api(client: httpx.AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_explain_replan_api(client: httpx.AsyncClient):
+async def test_explain_replan_api(auth_client: httpx.AsyncClient):
     # Create project first
-    p_res = await client.post("/api/v1/projects", json={"name": "AI Explainer Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "AI Explainer Project"})
     assert p_res.status_code == 201
     project_id = p_res.json()["id"]
 
@@ -35,7 +35,7 @@ async def test_explain_replan_api(client: httpx.AsyncClient):
         "finish_date_delta_days": 3,
         "mitigation_notes": ["Shifted deadline due to critical path delays"],
     }
-    res = await client.post(
+    res = await auth_client.post(
         f"/api/v1/projects/{project_id}/replan/explain",
         json=replan_payload,
     )
@@ -46,8 +46,8 @@ async def test_explain_replan_api(client: httpx.AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_ai_info_endpoint(client: httpx.AsyncClient):
-    res = await client.get("/api/v1/ai/info")
+async def test_ai_info_endpoint(auth_client: httpx.AsyncClient):
+    res = await auth_client.get("/api/v1/ai/info")
     assert res.status_code == 200
     data = res.json()
     assert data["provider"] == "mock"
@@ -56,9 +56,9 @@ async def test_ai_info_endpoint(client: httpx.AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_decompose_goal_project_alias(client: httpx.AsyncClient):
+async def test_decompose_goal_project_alias(auth_client: httpx.AsyncClient):
     # Ensure project-scoped URL also works (fixing P0-3)
-    p_res = await client.post("/api/v1/projects", json={"name": "Alias Test Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Alias Test Project"})
     assert p_res.status_code == 201
     project_id = p_res.json()["id"]
 
@@ -66,7 +66,7 @@ async def test_decompose_goal_project_alias(client: httpx.AsyncClient):
         "goal": "Build responsive billing and invoicing checkout portal",
         "context": "Needs Stripe integration",
     }
-    res = await client.post(f"/api/v1/projects/{project_id}/ai/decompose-goal", json=payload)
+    res = await auth_client.post(f"/api/v1/projects/{project_id}/ai/decompose-goal", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert data["goal"] == payload["goal"]
@@ -75,7 +75,7 @@ async def test_decompose_goal_project_alias(client: httpx.AsyncClient):
 
 @pytest.mark.asyncio
 async def test_claude_provider_requires_api_key_when_configured(
-    client: httpx.AsyncClient,
+    auth_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ):
     from backend.app.core.config import settings
@@ -89,6 +89,6 @@ async def test_claude_provider_requires_api_key_when_configured(
         get_llm_provider()
 
     # Calling endpoint returns 503 Service Unavailable with clear detail
-    res = await client.post("/api/v1/ai/decompose-goal", json={"goal": "Valid project goal"})
+    res = await auth_client.post("/api/v1/ai/decompose-goal", json={"goal": "Valid project goal"})
     assert res.status_code == 503
     assert "ANTHROPIC_API_KEY is not configured" in res.json()["detail"]
