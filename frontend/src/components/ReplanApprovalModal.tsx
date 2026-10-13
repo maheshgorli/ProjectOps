@@ -7,7 +7,6 @@ import {
   Calendar,
   Sparkles,
   ArrowRight,
-  UserCheck,
 } from 'lucide-react';
 import type { ReplanCandidate } from '../types/api';
 
@@ -152,20 +151,6 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
 
           {/* Governance Form Inputs */}
           <div className="space-y-3">
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                <UserCheck className="h-3.5 w-3.5 text-indigo-400" />
-                Decided By (Operator Name / Role):
-              </label>
-              <input
-                type="text"
-                value={decidedBy}
-                onChange={(e) => setDecidedBy(e.target.value)}
-                placeholder="e.g. Lead Engineer Jane Doe"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
             <div>
               <label className="text-xs font-semibold text-slate-300">
                 Decision Rationale & Governance Record:
