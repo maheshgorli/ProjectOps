@@ -51,12 +51,21 @@ class DependencySchema(BaseModel):
 class PlanCreateRequest(BaseModel):
     """Payload to create an immutable plan snapshot."""
 
-    version: int = Field(..., ge=1, description="Monotonically increasing version number")
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=255)
     target_completion_date: date | None = None
-    created_by: str = Field(default="system", max_length=255)
     tasks: list[TaskCreateSchema] = Field(default_factory=list)
     dependencies: list[DependencySchema] = Field(default_factory=list)
+
+
+class PlanActivateRequest(BaseModel):
+    """Payload to activate an initial plan version."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rationale: str = Field(..., min_length=1, description="Justification for activating this plan.")
+
 
 
 class PlanResponseSchema(BaseModel):

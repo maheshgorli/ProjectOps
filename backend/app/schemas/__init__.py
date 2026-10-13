@@ -23,8 +23,15 @@ from backend.app.schemas.history import (
     RiskEventCreateRequest,
     RiskEventResponse,
 )
+from backend.app.schemas.auth import (
+    TokenResponse,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+)
 from backend.app.schemas.plan import (
     DependencySchema,
+    PlanActivateRequest,
     PlanCreateRequest,
     PlanResponseSchema,
     PlanVersionListResponse,
