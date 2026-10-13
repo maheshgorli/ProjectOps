@@ -28,7 +28,15 @@ function ProtectedRoute({
 }: {
   children: ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7f9] text-slate-500">
+        <div className="text-sm">Loading session...</div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -39,7 +47,15 @@ function ProtectedRoute({
 
 // Redirect the homepage depending on login status
 function HomeRedirect() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7f9] text-slate-500">
+        <div className="text-sm">Loading session...</div>
+      </div>
+    );
+  }
 
   return (
     <Navigate

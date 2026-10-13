@@ -1,22 +1,42 @@
-
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Register() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { register } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setErrorMessage(null);
 
-    if (!name.trim() || !email.trim()) return;
+    if (!name.trim() || !email.trim() || !password) {
+      setErrorMessage("Please fill out all fields.");
+      return;
+    }
 
-    login(name, email);
-    navigate("/workspace");
+    if (password.length < 10) {
+      setErrorMessage("Password must be at least 10 characters long.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await register(email, name, password);
+      navigate("/workspace");
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to register account. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -40,6 +60,12 @@ export default function Register() {
           onSubmit={handleSubmit}
           className="space-y-5 rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
         >
+          {errorMessage && (
+            <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600 border border-red-200">
+              {errorMessage}
+            </div>
+          )}
+
           <div>
             <label htmlFor="register-name" className="mb-2 block text-sm font-medium">
               Full name
@@ -50,7 +76,7 @@ export default function Register() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your full name"
-              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none"
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-700"
             />
           </div>
 
@@ -65,20 +91,33 @@ export default function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none"
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-700"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="register-password" className="mb-2 block text-sm font-medium">
+              Password (min. 10 characters)
+            </label>
+            <input
+              id="register-password"
+              type="password"
+              required
+              minLength={10}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter secure password"
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-700"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-slate-900 py-3 text-sm font-medium text-white hover:bg-slate-700"
+            disabled={isSubmitting}
+            className="w-full rounded-lg bg-slate-900 py-3 text-sm font-medium text-white hover:bg-slate-700 transition disabled:opacity-50"
           >
-            Create demo account
+            {isSubmitting ? "Creating account..." : "Create account"}
           </button>
-
-          <p className="text-center text-xs text-slate-400">
-            Prototype registration — no real account is created.
-          </p>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">

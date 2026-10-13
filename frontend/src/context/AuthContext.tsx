@@ -1,66 +1,85 @@
-
 import {
   createContext,
-  useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
+import { api, getAuthToken, setAuthToken } from "../services/api";
+import type { AuthUser } from "../types/api";
 
-type User = {
-  id: string;
-  name: string;
-  email: string;
-};
-
-type AuthContextType = {
-  user: User | null;
-  login: (name: string, email: string) => void;
+export type AuthContextType = {
+  user: AuthUser | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, displayName: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
-
-function getSavedUser(): User | null {
-  try {
-    const saved = localStorage.getItem("projectops_user");
-    return saved ? (JSON.parse(saved) as User) : null;
-  } catch {
-    return null;
-  }
-}
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(getSavedUser);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  function login(name: string, email: string) {
-    const nextUser: User = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
+  useEffect(() => {
+    // Purge legacy client-generated identity from localStorage
+    localStorage.removeItem("projectops_user");
+
+    async function checkSession() {
+      const token = getAuthToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const me = await api.getMe();
+        setUser(me);
+      } catch {
+        setAuthToken(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void checkSession();
+
+    function handleUnauthorized() {
+      setUser(null);
+      setAuthToken(null);
+    }
+
+    window.addEventListener("projectops:unauthorized", handleUnauthorized);
+    return () => {
+      window.removeEventListener("projectops:unauthorized", handleUnauthorized);
     };
+  }, []);
 
-    localStorage.setItem("projectops_user", JSON.stringify(nextUser));
-    setUser(nextUser);
+  async function login(email: string, password: string) {
+    await api.login(email, password);
+    const me = await api.getMe();
+    setUser(me);
+  }
+
+  async function register(email: string, displayName: string, password: string) {
+    await api.register(email, displayName, password);
+    await api.login(email, password);
+    const me = await api.getMe();
+    setUser(me);
   }
 
   function logout() {
+    setAuthToken(null);
     localStorage.removeItem("projectops_user");
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-
-  return context;
-}
+export { useAuth } from "./useAuth";

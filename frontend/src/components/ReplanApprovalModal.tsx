@@ -15,8 +15,8 @@ interface ReplanApprovalModalProps {
   isOpen: boolean;
   onClose: () => void;
   candidate: ReplanCandidate | null;
-  onApprove: (rationale: string, decidedBy: string) => Promise<void>;
-  onReject: (rationale: string, decidedBy: string) => Promise<void>;
+  onApprove: (rationale: string) => Promise<void>;
+  onReject: (rationale: string) => Promise<void>;
   isSubmitting: boolean;
 }
 
@@ -28,7 +28,6 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
   onReject,
   isSubmitting,
 }) => {
-  const [decidedBy, setDecidedBy] = useState('Jane Doe (Human Operator)');
   const [rationale, setRationale] = useState(
     'Approved automated risk mitigation candidate to eliminate capacity overload.',
   );
@@ -37,13 +36,13 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
   if (!isOpen || !candidate) return null;
 
   const handleApprove = async () => {
-    if (!decidedBy.trim() || rationale.trim().length < 3) {
-      setErrorMessage('Please provide a valid operator name and rationale (min 3 chars).');
+    if (rationale.trim().length < 3) {
+      setErrorMessage('Please provide a valid rationale (min 3 chars).');
       return;
     }
     setErrorMessage(null);
     try {
-      await onApprove(rationale, decidedBy);
+      await onApprove(rationale);
       onClose();
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Approval failed');
@@ -51,13 +50,13 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
   };
 
   const handleReject = async () => {
-    if (!decidedBy.trim() || rationale.trim().length < 3) {
-      setErrorMessage('Please provide a valid operator name and reason for rejection.');
+    if (rationale.trim().length < 3) {
+      setErrorMessage('Please provide a reason for rejection (min 3 chars).');
       return;
     }
     setErrorMessage(null);
     try {
-      await onReject(rationale, decidedBy);
+      await onReject(rationale);
       onClose();
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Rejection failed');

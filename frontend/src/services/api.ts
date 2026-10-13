@@ -1,11 +1,13 @@
 /**
  * ProjectOps API Client
- * Type-safe fetch wrappers for backend /api/v1 endpoints.
+ * Type-safe fetch wrappers for backend /api/v1 endpoints with JWT authentication.
  */
 
 import type {
   AgentLoopStatus,
   AIInfo,
+  AuthTokenResponse,
+  AuthUser,
   DecisionRecord,
   GoalDecompositionResponse,
   LoopStepResponse,
@@ -23,6 +25,29 @@ import type {
 
 const BASE_URL = '/api/v1';
 
+/**
+ * Token Storage Security Trade-off:
+ * The JWT access token is stored in memory with a sessionStorage fallback to preserve
+ * sessions across page refreshes within the same browser tab (NOT localStorage).
+ * Trade-off: While sessionStorage isolates the token to the tab, it is still vulnerable
+ * to XSS if an attacker executes arbitrary JavaScript in the origin.
+ * Production hardening: Move to HttpOnly, SameSite cookies with server-side CSRF protection.
+ */
+let inMemoryToken: string | null = sessionStorage.getItem('projectops_token');
+
+export function setAuthToken(token: string | null): void {
+  inMemoryToken = token;
+  if (token) {
+    sessionStorage.setItem('projectops_token', token);
+  } else {
+    sessionStorage.removeItem('projectops_token');
+  }
+}
+
+export function getAuthToken(): string | null {
+  return inMemoryToken;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let errorDetail = res.statusText;
@@ -37,30 +62,80 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers || {});
+  if (inMemoryToken) {
+    headers.set('Authorization', `Bearer ${inMemoryToken}`);
+  }
+  if (!headers.has('Content-Type') && options.body && typeof options.body === 'string') {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (res.status === 401 && !endpoint.startsWith('/auth/login')) {
+    setAuthToken(null);
+    localStorage.removeItem('projectops_user');
+    window.dispatchEvent(new CustomEvent('projectops:unauthorized'));
+  }
+
+  return handleResponse<T>(res);
+}
+
 export const api = {
+  // Authentication
+  async register(
+    email: string,
+    displayName: string,
+    password: string,
+  ): Promise<AuthUser> {
+    return authFetch<AuthUser>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        display_name: displayName.trim(),
+        password,
+      }),
+    });
+  },
+
+  async login(email: string, password: string): Promise<AuthTokenResponse> {
+    const data = await authFetch<AuthTokenResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
+    });
+    setAuthToken(data.access_token);
+    return data;
+  },
+
+  async getMe(): Promise<AuthUser> {
+    return authFetch<AuthUser>('/auth/me');
+  },
+
   // Projects
   async listProjects(): Promise<Project[]> {
-    const res = await fetch(`${BASE_URL}/projects`);
-    return handleResponse<Project[]>(res);
+    return authFetch<Project[]>('/projects');
   },
 
   async getProject(projectId: string): Promise<Project> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}`);
-    return handleResponse<Project>(res);
+    return authFetch<Project>(`/projects/${projectId}`);
   },
 
   async createProject(name: string, description: string = ''): Promise<Project> {
-    const res = await fetch(`${BASE_URL}/projects`, {
+    return authFetch<Project>('/projects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
     });
-    return handleResponse<Project>(res);
   },
 
   async listMembers(projectId: string): Promise<Member[]> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/members`);
-    return handleResponse<Member[]>(res);
+    return authFetch<Member[]>(`/projects/${projectId}/members`);
   },
 
   async createMember(
@@ -69,49 +144,61 @@ export const api = {
     role: string,
     daily_capacity_hours: number = 8.0,
   ): Promise<Member> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/members`, {
+    return authFetch<Member>(`/projects/${projectId}/members`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, role, daily_capacity_hours }),
     });
-    return handleResponse<Member>(res);
   },
 
   // Plans
   async getActivePlan(projectId: string): Promise<ProjectPlan | null> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/plans/active`);
-    if (res.status === 404) return null;
-    return handleResponse<ProjectPlan>(res);
+    try {
+      return await authFetch<ProjectPlan>(`/projects/${projectId}/plans/active`);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('404')) {
+        return null;
+      }
+      throw err;
+    }
   },
 
   async getPlanByVersion(projectId: string, version: number): Promise<ProjectPlan> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/plans/${version}`);
-    return handleResponse<ProjectPlan>(res);
+    return authFetch<ProjectPlan>(`/projects/${projectId}/plans/${version}`);
   },
 
-  async listPlanVersions(projectId: string): Promise<{ versions: number[]; active_version: number | null }> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/plans`);
-    return handleResponse<{ versions: number[]; active_version: number | null }>(res);
+  async listPlanVersions(
+    projectId: string,
+  ): Promise<{ versions: number[]; active_version: number | null }> {
+    return authFetch<{ versions: number[]; active_version: number | null }>(
+      `/projects/${projectId}/plans/versions`,
+    );
   },
 
   async createPlan(projectId: string, planData: unknown): Promise<ProjectPlan> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/plans`, {
+    return authFetch<ProjectPlan>(`/projects/${projectId}/plans`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(planData),
     });
-    return handleResponse<ProjectPlan>(res);
+  },
+
+  async activatePlan(
+    projectId: string,
+    version: number,
+    rationale: string,
+  ): Promise<ProjectPlan> {
+    return authFetch<ProjectPlan>(`/projects/${projectId}/plans/${version}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ rationale }),
+    });
   },
 
   // Task Execution States
   async getTasks(projectId: string): Promise<TaskMerged[]> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/tasks`);
-    return handleResponse<TaskMerged[]>(res);
+    return authFetch<TaskMerged[]>(`/projects/${projectId}/tasks`);
   },
 
   async getTask(projectId: string, taskId: string): Promise<TaskMerged> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/tasks/${taskId}`);
-    return handleResponse<TaskMerged>(res);
+    return authFetch<TaskMerged>(`/projects/${projectId}/tasks/${taskId}`);
   },
 
   async updateTaskStatus(
@@ -119,106 +206,95 @@ export const api = {
     taskId: string,
     payload: TaskStatusUpdateRequest,
   ): Promise<TaskMerged> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/tasks/${taskId}/status`, {
+    return authFetch<TaskMerged>(`/projects/${projectId}/tasks/${taskId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return handleResponse<TaskMerged>(res);
   },
 
   // Scheduling
   async getSchedule(projectId: string, version?: number): Promise<ScheduleResult> {
     const url = version
-      ? `${BASE_URL}/projects/${projectId}/schedule?version=${version}`
-      : `${BASE_URL}/projects/${projectId}/schedule`;
-    const res = await fetch(url);
-    return handleResponse<ScheduleResult>(res);
+      ? `/projects/${projectId}/schedule?version=${version}`
+      : `/projects/${projectId}/schedule`;
+    return authFetch<ScheduleResult>(url);
   },
 
   // Risks & Replanning
   async analyzeRisks(projectId: string, version?: number): Promise<RiskAnalysis> {
     const url = version
-      ? `${BASE_URL}/projects/${projectId}/risks/analyze?version=${version}`
-      : `${BASE_URL}/projects/${projectId}/risks/analyze`;
-    const res = await fetch(url);
-    return handleResponse<RiskAnalysis>(res);
+      ? `/projects/${projectId}/risks/analyze?version=${version}`
+      : `/projects/${projectId}/risks/analyze`;
+    return authFetch<RiskAnalysis>(url);
   },
 
   async proposeReplan(projectId: string): Promise<ReplanCandidate> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/propose`, {
+    return authFetch<ReplanCandidate>(`/projects/${projectId}/replan/propose`, {
       method: 'POST',
     });
-    return handleResponse<ReplanCandidate>(res);
   },
 
-  // Human Approval Gateway (Server-Side Proposals - Core Principle 4 & P0-1 fix)
+  // Human Approval Gateway (Server-Side Proposals)
   async listProposals(projectId: string, status?: string): Promise<ReplanProposal[]> {
     const url = status
-      ? `${BASE_URL}/projects/${projectId}/replan/proposals?status=${status}`
-      : `${BASE_URL}/projects/${projectId}/replan/proposals`;
-    const res = await fetch(url);
-    return handleResponse<ReplanProposal[]>(res);
+      ? `/projects/${projectId}/replan/proposals?status=${status}`
+      : `/projects/${projectId}/replan/proposals`;
+    return authFetch<ReplanProposal[]>(url);
   },
 
   async getProposal(projectId: string, proposalId: string): Promise<ReplanProposal> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/proposals/${proposalId}`);
-    return handleResponse<ReplanProposal>(res);
+    return authFetch<ReplanProposal>(`/projects/${projectId}/replan/proposals/${proposalId}`);
   },
 
   async approveReplan(
     projectId: string,
     proposalId: string,
     decisionRationale: string,
-    decidedBy: string,
-  ): Promise<{ status: string; proposal_id: string; previous_version: number; new_version: number; summary: string; plan: ProjectPlan }> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/approve`, {
+  ): Promise<{
+    status: string;
+    proposal_id: string;
+    previous_version: number;
+    new_version: number;
+    summary: string;
+    plan: ProjectPlan;
+  }> {
+    return authFetch(`/projects/${projectId}/replan/approve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         proposal_id: proposalId,
         decision_rationale: decisionRationale,
-        decided_by: decidedBy,
       }),
     });
-    return handleResponse(res);
   },
 
   async rejectReplan(
     projectId: string,
     proposalId: string,
     rationale: string,
-    decidedBy: string,
   ): Promise<{ status: string; proposal_id: string; current_version: number }> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/replan/reject`, {
+    return authFetch(`/projects/${projectId}/replan/reject`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         proposal_id: proposalId,
         rationale,
-        decided_by: decidedBy,
       }),
     });
-    return handleResponse(res);
   },
 
   // Autonomous Multi-Agent Loop
-  async runAgentLoopStep(projectId: string, triggeredBy: string = 'manual'): Promise<LoopStepResponse> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/agent-loop/step?triggered_by=${triggeredBy}`, {
+  async runAgentLoopStep(projectId: string): Promise<LoopStepResponse> {
+    return authFetch<LoopStepResponse>(`/projects/${projectId}/agent-loop/step`, {
       method: 'POST',
     });
-    return handleResponse<LoopStepResponse>(res);
   },
 
   async getAgentLoopStatus(projectId: string): Promise<AgentLoopStatus> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/agent-loop/status`);
-    return handleResponse<AgentLoopStatus>(res);
+    return authFetch<AgentLoopStatus>(`/projects/${projectId}/agent-loop/status`);
   },
 
   // AI Assistant
   async getAiInfo(): Promise<AIInfo> {
-    const res = await fetch(`${BASE_URL}/ai/info`);
-    return handleResponse<AIInfo>(res);
+    return authFetch<AIInfo>('/ai/info');
   },
 
   async decomposeGoal(
@@ -226,14 +302,6 @@ export const api = {
     goal: string,
     availableRoles: string[] = ['lead', 'engineer', 'qa', 'devops'],
   ): Promise<GoalDecompositionResponse> {
-    const res = await fetch(`${BASE_URL}/ai/decompose-goal`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        goal,
-        context: `Project ID: ${projectId}. Available roles: ${availableRoles.join(', ')}`,
-      }),
-    });
     interface RawBackendResponse {
       goal?: string;
       tasks?: Array<{
@@ -251,7 +319,18 @@ export const api = {
       estimated_total_hours?: number;
       explanation?: string;
     }
-    const data = await handleResponse<RawBackendResponse>(res);
+
+    const data = await authFetch<RawBackendResponse>(
+      `/projects/${projectId}/ai/decompose-goal`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          goal,
+          context: `Project ID: ${projectId}. Available roles: ${availableRoles.join(', ')}`,
+        }),
+      },
+    );
+
     const depsBySuccessor: Record<string, string[]> = {};
     if (data.dependencies) {
       for (const d of data.dependencies) {
@@ -280,12 +359,10 @@ export const api = {
 
   // History & Evidence Streams
   async getProgressHistory(projectId: string): Promise<ProgressHistoryEvent[]> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/history/progress`);
-    return handleResponse<ProgressHistoryEvent[]>(res);
+    return authFetch<ProgressHistoryEvent[]>(`/projects/${projectId}/history/progress`);
   },
 
   async getDecisions(projectId: string): Promise<DecisionRecord[]> {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}/decisions`);
-    return handleResponse<DecisionRecord[]>(res);
+    return authFetch<DecisionRecord[]>(`/projects/${projectId}/decisions`);
   },
 };
