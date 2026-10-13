@@ -5,19 +5,18 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_execution_loop_healthy_project(client: httpx.AsyncClient):
+async def test_execution_loop_healthy_project(auth_client: httpx.AsyncClient):
     # 1. Setup project with 2 tasks: T1 (TODO) -> T2 (TODO)
-    p_res = await client.post("/api/v1/projects", json={"name": "Healthy Loop Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Healthy Loop Project"})
     project_id = p_res.json()["id"]
 
-    m_res = await client.post(
+    m_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/members",
         json={"name": "Dev Alice", "role": "engineer", "daily_capacity_hours": 8.0},
     )
     alice_id = m_res.json()["id"]
 
     plan_payload = {
-        "version": 1,
         "name": "Linear Sprint",
         "tasks": [
             {
@@ -44,11 +43,15 @@ async def test_execution_loop_healthy_project(client: httpx.AsyncClient):
             }
         ],
     }
-    p_plan_res = await client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload)
+    p_plan_res = await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload)
     assert p_plan_res.status_code == 201
+    await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial activation"},
+    )
 
     # 2. Trigger agent loop step
-    step_res = await client.post(f"/api/v1/projects/{project_id}/agent-loop/step")
+    step_res = await auth_client.post(f"/api/v1/projects/{project_id}/agent-loop/step")
     assert step_res.status_code == 200
     data = step_res.json()
 
@@ -62,7 +65,7 @@ async def test_execution_loop_healthy_project(client: httpx.AsyncClient):
     assert data["actionable_tasks"] == ["T1"]
 
     # 3. Verify agent loop run history recorded
-    status_res = await client.get(f"/api/v1/projects/{project_id}/agent-loop/status")
+    status_res = await auth_client.get(f"/api/v1/projects/{project_id}/agent-loop/status")
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["active_plan_version"] == 1
@@ -72,23 +75,23 @@ async def test_execution_loop_healthy_project(client: httpx.AsyncClient):
 
 @pytest.mark.asyncio
 async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
-    client: httpx.AsyncClient,
+    auth_client: httpx.AsyncClient,
 ):
     """
     Test full loop cycle with risk detection:
     PLAN -> EXECUTE -> OBSERVE -> REASON -> REPLAN (halts at AWAITING_APPROVAL) -> APPROVE -> RESUME
     """
     # 1. Create project with Alice (overloaded) and Bob (available)
-    p_res = await client.post("/api/v1/projects", json={"name": "Risk Loop Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Risk Loop Project"})
     project_id = p_res.json()["id"]
 
-    m1_res = await client.post(
+    m1_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/members",
         json={"name": "Alice Lead", "role": "lead", "daily_capacity_hours": 8.0},
     )
     alice_id = m1_res.json()["id"]
 
-    m2_res = await client.post(
+    m2_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/members",
         json={"name": "Bob Support", "role": "engineer", "daily_capacity_hours": 8.0},
     )
@@ -96,7 +99,6 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
 
     # Alice assigned 2 parallel 8h tasks scheduled concurrently -> capacity overload!
     plan_payload = {
-        "version": 1,
         "name": "Overallocated Baseline",
         "tasks": [
             {
@@ -116,10 +118,14 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
         ],
         "dependencies": [],
     }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload)
+    await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload)
+    await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial activation"},
+    )
 
     # 2. Run agent loop step -> should detect risk and halt at AWAITING_APPROVAL
-    step_res = await client.post(f"/api/v1/projects/{project_id}/agent-loop/step")
+    step_res = await auth_client.post(f"/api/v1/projects/{project_id}/agent-loop/step")
     assert step_res.status_code == 200
     data = step_res.json()
 
@@ -133,7 +139,7 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
     candidate = data["replan_candidate"]
 
     # 3. Check loop status
-    loop_status_res = await client.get(f"/api/v1/projects/{project_id}/agent-loop/status")
+    loop_status_res = await auth_client.get(f"/api/v1/projects/{project_id}/agent-loop/status")
     assert loop_status_res.status_code == 200
     loop_status = loop_status_res.json()
     assert loop_status["current_status"] == "AWAITING_APPROVAL"
@@ -145,16 +151,15 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
     approval_payload = {
         "proposal_id": proposal_id,
         "decision_rationale": "Reassigning T2 to Bob to alleviate Alice's capacity overload.",
-        "decided_by": "Engineering Manager Dave",
     }
-    approve_res = await client.post(
+    approve_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/replan/approve", json=approval_payload
     )
     assert approve_res.status_code == 200
     assert approve_res.json()["new_version"] == 2
 
     # 5. Run next loop step -> should resume and execute healthy plan
-    next_step_res = await client.post(f"/api/v1/projects/{project_id}/agent-loop/step")
+    next_step_res = await auth_client.post(f"/api/v1/projects/{project_id}/agent-loop/step")
     assert next_step_res.status_code == 200
     next_data = next_step_res.json()
     assert next_data["status"] == "HEALTHY"
@@ -164,10 +169,10 @@ async def test_execution_loop_at_risk_halts_for_approval_and_resumes(
 
 
 @pytest.mark.asyncio
-async def test_agent_loop_project_not_found(client: httpx.AsyncClient):
+async def test_agent_loop_project_not_found(auth_client: httpx.AsyncClient):
     fake_id = "non_existent_loop_project"
-    res1 = await client.post(f"/api/v1/projects/{fake_id}/agent-loop/step")
+    res1 = await auth_client.post(f"/api/v1/projects/{fake_id}/agent-loop/step")
     assert res1.status_code == 404
 
-    res2 = await client.get(f"/api/v1/projects/{fake_id}/agent-loop/status")
+    res2 = await auth_client.get(f"/api/v1/projects/{fake_id}/agent-loop/status")
     assert res2.status_code == 404

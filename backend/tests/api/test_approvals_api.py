@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.auth import UserORM
-from backend.app.models.replan import ReplanProposalORM
+from backend.app.models.proposal import ReplanProposalORM
 
 
 @pytest.mark.asyncio

@@ -5,20 +5,19 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_get_schedule_and_simulation(client: httpx.AsyncClient):
+async def test_get_schedule_and_simulation(auth_client: httpx.AsyncClient):
     # 1. Create project and member
-    p_res = await client.post("/api/v1/projects", json={"name": "Scheduling Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Scheduling Project"})
     project_id = p_res.json()["id"]
 
-    m_res = await client.post(
+    m_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/members",
         json={"name": "Dev Alice", "role": "engineer", "daily_capacity_hours": 8.0},
     )
     member_id = m_res.json()["id"]
 
-    # 2. Create baseline plan (2 tasks: T1=8h, T2=8h)
+    # 2. Create baseline plan (2 tasks: T1=8h, T2=8h) and activate it
     plan_payload = {
-        "version": 1,
         "name": "Baseline Plan",
         "tasks": [
             {
@@ -43,10 +42,14 @@ async def test_get_schedule_and_simulation(client: httpx.AsyncClient):
             }
         ],
     }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload)
+    await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=plan_payload)
+    await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial activation"},
+    )
 
     # 3. Request Schedule on Active Plan
-    sched_res = await client.get(
+    sched_res = await auth_client.get(
         f"/api/v1/projects/{project_id}/schedule",
         params={"start_date": "2026-10-05"},
     )
@@ -82,7 +85,7 @@ async def test_get_schedule_and_simulation(client: httpx.AsyncClient):
         ],
         "start_date": "2026-10-05",
     }
-    sim_res = await client.post(
+    sim_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/schedule/simulate",
         json=sim_payload,
     )
@@ -96,7 +99,7 @@ async def test_get_schedule_and_simulation(client: httpx.AsyncClient):
     assert sim_data["simulated_finish_date"] > sim_data["baseline_finish_date"]
 
     # 5. Confirm DB was NOT changed by simulation
-    verify_res = await client.get(
+    verify_res = await auth_client.get(
         f"/api/v1/projects/{project_id}/schedule",
         params={"start_date": "2026-10-05"},
     )
