@@ -25,9 +25,7 @@ from backend.app.models.auth import UserORM
 def configure_test_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure test suite defaults to explicit mock LLM provider and test secret key."""
     monkeypatch.setattr(settings, "llm_provider", "mock")
-    monkeypatch.setattr(
-        settings, "auth_secret_key", "test-auth-secret-key-at-least-32-chars-long!"
-    )
+    monkeypatch.setattr(settings, "auth_secret_key", "test-auth-secret-key-at-least-32-chars-long!")
 
 
 @pytest_asyncio.fixture
@@ -101,12 +99,23 @@ def auth_headers(auth_token: str) -> dict[str, str]:
 
 @pytest_asyncio.fixture
 async def auth_client(
-    client: httpx.AsyncClient,
+    test_session: AsyncSession,
     auth_headers: dict[str, str],
-) -> httpx.AsyncClient:
+) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Provide an authenticated client acting as auth_user."""
-    client.headers.update(auth_headers)
-    return client
+
+    async def _get_test_session() -> AsyncGenerator[AsyncSession, None]:
+        yield test_session
+
+    app.dependency_overrides[get_async_session] = _get_test_session
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers=auth_headers,
+    ) as ac:
+        yield ac
+    app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture

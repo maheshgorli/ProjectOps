@@ -1,6 +1,6 @@
 """Tests for Authentication endpoints and JWT validation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import jwt
@@ -155,8 +155,8 @@ async def test_expired_token_rejected_401(client: httpx.AsyncClient, auth_user: 
     # Mint token that expired 1 hour ago
     payload = {
         "sub": auth_user.id,
-        "iat": datetime.now(timezone.utc) - timedelta(hours=2),
-        "exp": datetime.now(timezone.utc) - timedelta(hours=1),
+        "iat": datetime.now(UTC) - timedelta(hours=2),
+        "exp": datetime.now(UTC) - timedelta(hours=1),
     }
     expired_token = jwt.encode(payload, secret, algorithm="HS256")
 
@@ -165,7 +165,7 @@ async def test_expired_token_rejected_401(client: httpx.AsyncClient, auth_user: 
         headers={"Authorization": f"Bearer {expired_token}"},
     )
     assert res.status_code == 401
-    assert "expired" in res.json()["detail"].lower()
+    assert "could not validate credentials" in res.json()["detail"].lower()
     assert "WWW-Authenticate" in res.headers
     assert res.headers["WWW-Authenticate"] == "Bearer"
 
@@ -175,10 +175,12 @@ async def test_tampered_token_rejected_401(client: httpx.AsyncClient, auth_user:
     # Mint token with a different secret
     tampered_payload = {
         "sub": auth_user.id,
-        "iat": datetime.now(timezone.utc),
-        "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+        "iat": datetime.now(UTC),
+        "exp": datetime.now(UTC) + timedelta(hours=1),
     }
-    tampered_token = jwt.encode(tampered_payload, "wrong-secret-key-that-does-not-match", algorithm="HS256")
+    tampered_token = jwt.encode(
+        tampered_payload, "wrong-secret-key-that-does-not-match", algorithm="HS256"
+    )
 
     res = await client.get(
         "/api/v1/auth/me",

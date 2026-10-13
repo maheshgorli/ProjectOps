@@ -49,7 +49,7 @@ async def test_openapi_project_routes_authorization_matrix(
         if "github/webhook" in path:
             continue
 
-        for method in methods.keys():
+        for method in methods:
             if method.lower() in ("get", "post", "patch", "put", "delete"):
                 project_endpoints.append((method.upper(), path))
 
@@ -65,7 +65,8 @@ async def test_openapi_project_routes_authorization_matrix(
             json={},  # Empty body to avoid potential 422 if body inspected first
         )
         assert res_no_auth.status_code == 401, (
-            f"Expected 401 for unauthenticated {method} {resolved_path}, got {res_no_auth.status_code} ({res_no_auth.text})"
+            f"Expected 401 for unauthenticated {method} {resolved_path}, "
+            f"got {res_no_auth.status_code} ({res_no_auth.text})"
         )
 
         # 2. Non-member request -> must return 404 (never leak project existence)
@@ -75,5 +76,6 @@ async def test_openapi_project_routes_authorization_matrix(
             json={},
         )
         assert res_non_member.status_code == 404, (
-            f"Expected 404 for non-member {method} {resolved_path}, got {res_non_member.status_code} ({res_non_member.text})"
+            f"Expected 404 for non-member {method} {resolved_path}, "
+            f"got {res_non_member.status_code} ({res_non_member.text})"
         )

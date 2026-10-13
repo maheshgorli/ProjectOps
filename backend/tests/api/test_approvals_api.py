@@ -55,7 +55,8 @@ async def test_approve_candidate_replan(auth_client: httpx.AsyncClient, auth_use
     assert len(list_res.json()) >= 1
     assert any(p["id"] == proposal_id for p in list_res.json())
 
-    # 4. Officially approve candidate replan using proposal_id only (P0-1 Fix, server derives decided_by)
+    # 4. Officially approve candidate replan using proposal_id only
+    # (P0-1 Fix, server derives decided_by)
     approval_payload = {
         "proposal_id": proposal_id,
         "decision_rationale": "Splitting task into setup and testing to de-risk delivery.",

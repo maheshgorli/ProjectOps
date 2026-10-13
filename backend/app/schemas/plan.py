@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.app.domain.models import DependencyType, TaskStatus
 
@@ -65,6 +65,13 @@ class PlanActivateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rationale: str = Field(..., min_length=1, description="Justification for activating this plan.")
+
+    @field_validator("rationale")
+    @classmethod
+    def validate_rationale_not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Rationale cannot be blank or whitespace only.")
+        return v.strip()
 
 
 class PlanResponseSchema(BaseModel):
