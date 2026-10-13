@@ -35,5 +35,20 @@ class Settings(BaseSettings):
     # CORS Settings
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # Authentication Settings (HS256 JWT, Argon2)
+    # auth_secret_key has NO default; fails fast when used if not provided outside tests
+    auth_secret_key: str | None = None
+    access_token_expire_minutes: int = 60
+    auth_algorithm: str = "HS256"
+
+    def get_auth_secret_key(self) -> str:
+        """Retrieve auth secret key or fail fast with a clear error."""
+        if not self.auth_secret_key:
+            raise RuntimeError(
+                "AUTH_SECRET_KEY is not set. A secure secret key must be configured in environment or .env."
+            )
+        return self.auth_secret_key
+
 
 settings = Settings()
+
