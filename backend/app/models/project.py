@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from backend.app.models.auth import ProjectMembershipORM
     from backend.app.models.execution import TaskExecutionStateORM
     from backend.app.models.plan import ProjectPlanORM
     from backend.app.models.proposal import ReplanProposalORM
@@ -28,6 +29,12 @@ class ProjectORM(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
 
+    memberships: Mapped[list["ProjectMembershipORM"]] = relationship(
+        "ProjectMembershipORM",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
     members: Mapped[list["MemberORM"]] = relationship(
         "MemberORM",
         back_populates="project",
