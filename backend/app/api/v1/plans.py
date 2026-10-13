@@ -170,7 +170,10 @@ async def activate_initial_plan(
     if active_plan is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Project already has an active plan. Changes to an active plan must go through /replan proposals.",
+            detail=(
+                "Project already has an active plan. Changes to an active plan "
+                "must go through /replan proposals."
+            ),
         )
 
     # 2. Verify target plan version exists

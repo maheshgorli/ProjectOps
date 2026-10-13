@@ -6,6 +6,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.auth.deps import (
+    require_project_member,
+    require_project_owner,
+)
 from backend.app.db.session import get_async_session
 from backend.app.domain.graph import CycleDetectedError, TaskGraph, TaskNotFoundError
 from backend.app.domain.models import (
@@ -16,6 +20,7 @@ from backend.app.domain.models import (
     Task,
     TaskStatus,
 )
+from backend.app.models.auth import ProjectMembershipORM
 from backend.app.models.proposal import ReplanProposalORM
 from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
@@ -58,17 +63,10 @@ async def list_replan_proposals(
     status: str | None = Query(
         None, description="Filter by status: PENDING, APPROVED, REJECTED, SUPERSEDED"
     ),
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[ReplanProposalResponse]:
     """List all replan proposals for a project, optionally filtered by status."""
-    project_repo = ProjectRepository(session)
-    project = await project_repo.get_project(project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND if hasattr(status, "HTTP_404_NOT_FOUND") else 404,
-            detail=f"Project '{project_id}' not found.",
-        )
-
     proposal_repo = ProposalRepository(session)
     proposals = await proposal_repo.list_proposals(project_id, status=status)
     return [_to_proposal_response(p) for p in proposals]
@@ -78,17 +76,10 @@ async def list_replan_proposals(
 async def get_replan_proposal(
     project_id: str,
     proposal_id: str,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> ReplanProposalResponse:
     """Retrieve details of an individual server-stored replan proposal."""
-    project_repo = ProjectRepository(session)
-    project = await project_repo.get_project(project_id)
-    if not project:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Project '{project_id}' not found.",
-        )
-
     proposal_repo = ProposalRepository(session)
     proposal = await proposal_repo.get_proposal(project_id, proposal_id)
     if not proposal:
@@ -103,10 +94,11 @@ async def get_replan_proposal(
 async def approve_candidate_replan(
     project_id: str,
     req: ReplanApprovalRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_owner),
     session: AsyncSession = Depends(get_async_session),
 ) -> ReplanApprovalResponse:
     """
-    Approve and activate a server-stored candidate replan snapshot.
+    Approve and activate a server-stored candidate replan snapshot (Owner only).
 
     Enforces:
     - P0-1 Fix: Approval operates only on pre-stored server proposals, never client body plans.
@@ -114,6 +106,7 @@ async def approve_candidate_replan(
     - Rule 5: Plans are immutable, versioned snapshots. Never overwrite history.
     - Proposal must exist and have status PENDING.
     - Proposal baseline_version must match the currently active plan version (reject stale).
+    - Actor is server-derived from authenticated owner (decided_by = user.id).
     - Carries forward task execution states into the new plan version.
     """
     project_repo = ProjectRepository(session)
@@ -143,19 +136,26 @@ async def approve_candidate_replan(
 
     plan_repo = PlanRepository(session)
     active_plan = await plan_repo.get_active_plan(project_id)
-    prev_version = active_plan.version if active_plan else 0
+    if not active_plan:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot approve a replan proposal when no active plan exists.",
+        )
 
-    # Stale baseline check: ensure proposal was simulated against the active version
+    prev_version = active_plan.version
     if proposal.baseline_version != prev_version:
         raise HTTPException(
             status_code=409,
             detail=(
-                f"Proposal is stale: baseline version {proposal.baseline_version} "
-                f"does not match current active plan version {prev_version}."
+                f"Stale proposal rejected. Proposal baseline is v{proposal.baseline_version}, "
+                f"but currently active plan is v{prev_version}. "
+                "Re-run simulation against active plan."
             ),
         )
 
-    # Reconstruct domain entities from server-stored proposal snapshot
+    actor_id = _membership.user_id
+
+    # Reconstruct domain plan from server-stored proposal candidate
     candidate_data = proposal.candidate_plan
     raw_tasks = candidate_data.get("tasks", [])
     raw_deps = candidate_data.get("dependencies", [])
@@ -168,11 +168,20 @@ async def approve_candidate_replan(
             status=TaskStatus(t["status"]) if "status" in t else TaskStatus.TODO,
             estimated_hours=float(t.get("estimated_hours", 8.0)),
             assigned_to_id=t.get("assigned_to_id"),
-            due_date=date.fromisoformat(t["due_date"]) if t.get("due_date") else None,
-            start_date=date.fromisoformat(t["start_date"]) if t.get("start_date") else None,
+            due_date=(
+                date.fromisoformat(t["due_date"])
+                if t.get("due_date") and isinstance(t["due_date"], str)
+                else t.get("due_date")
+            ),
+            start_date=(
+                date.fromisoformat(t["start_date"])
+                if t.get("start_date") and isinstance(t["start_date"], str)
+                else t.get("start_date")
+            ),
         )
         for t in raw_tasks
     }
+
     domain_deps: list[Dependency] = [
         Dependency(
             predecessor_id=d["predecessor_id"],
@@ -222,7 +231,7 @@ async def approve_candidate_replan(
         dependencies=domain_deps,
         members=domain_members,
         created_at=datetime.now(UTC),
-        created_by=req.decided_by,
+        created_by=actor_id,
     )
 
     try:
@@ -240,7 +249,7 @@ async def approve_candidate_replan(
     # Mark proposal APPROVED
     await proposal_repo.mark_approved(
         proposal=proposal,
-        decided_by=req.decided_by,
+        decided_by=actor_id,
         rationale=req.decision_rationale,
     )
 
@@ -254,7 +263,7 @@ async def approve_candidate_replan(
             f"Approved Replan proposal {proposal.id} from v{prev_version} to v{saved_plan.version}"
         ),
         rationale=req.decision_rationale,
-        decided_by=req.decided_by,
+        decided_by=actor_id,
     )
 
     # Append progress audit trail event
@@ -264,10 +273,10 @@ async def approve_candidate_replan(
         previous_status=f"v{prev_version}",
         new_status=f"v{saved_plan.version}",
         evidence_notes=(
-            f"Candidate replan proposal {proposal.id} approved and activated by {req.decided_by}. "
+            f"Candidate replan proposal {proposal.id} approved and activated by {actor_id}. "
             f"Rationale: {req.decision_rationale}"
         ),
-        recorded_by=req.decided_by,
+        recorded_by=actor_id,
     )
 
     # Record APPROVE loop stage in agent runs
@@ -275,8 +284,8 @@ async def approve_candidate_replan(
         project_id=project_id,
         loop_stage="APPROVE",
         status="SUCCESS",
-        summary=f"Replan proposal {proposal.id} approved by {req.decided_by}.",
-        triggered_by="human_approval",
+        summary=f"Replan proposal {proposal.id} approved by {actor_id}.",
+        triggered_by=f"user:{actor_id}",
     )
 
     await session.commit()
@@ -297,15 +306,17 @@ async def approve_candidate_replan(
 async def reject_candidate_replan(
     project_id: str,
     req: ReplanRejectionRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_owner),
     session: AsyncSession = Depends(get_async_session),
 ) -> ReplanRejectionResponse:
     """
-    Reject a proposed candidate replan proposition.
+    Reject a proposed candidate replan proposition (Owner only).
 
     Enforces:
     - Rule 4: Replanning requires human approval.
     - Rule 5: Records the rejection in the immutable decision audit trail.
     - Active plan remains unchanged.
+    - Actor is server-derived from authenticated owner (decided_by = user.id).
     """
     project_repo = ProjectRepository(session)
     project = await project_repo.get_project(project_id)
@@ -336,10 +347,12 @@ async def reject_candidate_replan(
     active_plan = await plan_repo.get_active_plan(project_id)
     current_version = active_plan.version if active_plan else 0
 
+    actor_id = _membership.user_id
+
     # Mark proposal REJECTED in database
     await proposal_repo.mark_rejected(
         proposal=proposal,
-        decided_by=req.decided_by,
+        decided_by=actor_id,
         rationale=req.rationale,
     )
 
@@ -348,9 +361,9 @@ async def reject_candidate_replan(
         project_id=project_id,
         plan_id=active_plan.id if active_plan else None,
         decision_type="REPLAN_REJECTED",
-        summary=f"Rejected candidate replan proposal {proposal.id} by {req.decided_by}",
+        summary=f"Rejected candidate replan proposal {proposal.id} by {actor_id}",
         rationale=req.rationale,
-        decided_by=req.decided_by,
+        decided_by=actor_id,
     )
 
     # Record APPROVE loop stage rejection in agent runs
@@ -358,8 +371,8 @@ async def reject_candidate_replan(
         project_id=project_id,
         loop_stage="APPROVE",
         status="REJECTED",
-        summary=f"Replan candidate proposal {proposal.id} rejected by {req.decided_by}.",
-        triggered_by="human_approval",
+        summary=f"Replan candidate proposal {proposal.id} rejected by {actor_id}.",
+        triggered_by=f"user:{actor_id}",
     )
 
     await session.commit()

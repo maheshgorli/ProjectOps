@@ -67,7 +67,6 @@ class PlanActivateRequest(BaseModel):
     rationale: str = Field(..., min_length=1, description="Justification for activating this plan.")
 
 
-
 class PlanResponseSchema(BaseModel):
     """Response schema for a complete versioned plan snapshot."""
 

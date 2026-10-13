@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.auth.deps import require_project_member
 from backend.app.db.session import get_async_session
 from backend.app.domain.calendar import working_days_delta
 from backend.app.domain.clock import SystemClock
@@ -15,6 +16,7 @@ from backend.app.domain.models import (
     Task,
 )
 from backend.app.domain.scheduler import DeterministicScheduler, ScheduleResult
+from backend.app.models.auth import ProjectMembershipORM
 from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.plan_repository import PlanRepository
 from backend.app.schemas.schedule import (
@@ -73,6 +75,7 @@ async def get_schedule(
     project_id: str,
     version: int | None = Query(None, description="Specific plan version; defaults to active"),
     start_date: date | None = Query(None, description="Override project start date"),
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> ScheduleResponse:
     """Run deterministic CPM schedule on active or versioned plan."""
@@ -107,6 +110,7 @@ async def get_schedule(
 async def simulate_schedule(
     project_id: str,
     req: ScheduleSimulationRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> ScheduleSimulationResponse:
     """

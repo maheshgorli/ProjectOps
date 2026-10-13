@@ -45,10 +45,10 @@ class Settings(BaseSettings):
         """Retrieve auth secret key or fail fast with a clear error."""
         if not self.auth_secret_key:
             raise RuntimeError(
-                "AUTH_SECRET_KEY is not set. A secure secret key must be configured in environment or .env."
+                "AUTH_SECRET_KEY is not set. A secure secret key must be "
+                "configured in environment or .env."
             )
         return self.auth_secret_key
 
 
 settings = Settings()
-

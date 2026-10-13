@@ -1,6 +1,5 @@
 """FastAPI dependencies for user authentication and role-based authorization."""
 
-from collections.abc import Callable
 from typing import Annotated
 
 import jwt
@@ -42,8 +41,8 @@ async def get_current_user(
         user_id: str | None = payload.get("sub")
         if not user_id:
             raise unauthorized_exc
-    except jwt.PyJWTError:
-        raise unauthorized_exc
+    except jwt.PyJWTError as exc:
+        raise unauthorized_exc from exc
 
     stmt = select(UserORM).where(UserORM.id == user_id)
     result = await session.execute(stmt)

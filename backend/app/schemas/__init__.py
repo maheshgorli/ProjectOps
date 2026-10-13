@@ -15,6 +15,12 @@ from backend.app.schemas.approval import (
     ReplanRejectionRequest,
     ReplanRejectionResponse,
 )
+from backend.app.schemas.auth import (
+    TokenResponse,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+)
 from backend.app.schemas.history import (
     DecisionCreateRequest,
     DecisionResponse,
@@ -22,12 +28,6 @@ from backend.app.schemas.history import (
     ProgressEventResponse,
     RiskEventCreateRequest,
     RiskEventResponse,
-)
-from backend.app.schemas.auth import (
-    TokenResponse,
-    UserLoginRequest,
-    UserRegisterRequest,
-    UserResponse,
 )
 from backend.app.schemas.plan import (
     DependencySchema,
@@ -70,6 +70,11 @@ from backend.app.schemas.task import (
 )
 
 __all__ = [
+    "TokenResponse",
+    "UserLoginRequest",
+    "UserRegisterRequest",
+    "UserResponse",
+    "PlanActivateRequest",
     "ProjectCreateRequest",
     "ProjectResponse",
     "MemberCreateRequest",

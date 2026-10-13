@@ -33,9 +33,7 @@ class ProjectMembershipORM(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Project-level membership and role association."""
 
     __tablename__ = "project_memberships"
-    __table_args__ = (
-        UniqueConstraint("project_id", "user_id", name="uq_project_user_membership"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_user_membership"),)
 
     project_id: Mapped[str] = mapped_column(
         String(36),

@@ -11,7 +11,6 @@ from backend.app.models.auth import ProjectMembershipORM
 from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
-from backend.app.repositories.project_repository import ProjectRepository
 from backend.app.schemas.task import (
     ALLOWED_STATUS_TRANSITIONS,
     TaskMergedResponse,
@@ -150,9 +149,7 @@ async def update_task_status(
         task_id=task_id,
         new_status=target_status,
         previous_status=current_status,
-        evidence_notes=(
-            req.evidence_notes or f"Updated status to {target_status} by {actor_id}."
-        ),
+        evidence_notes=(req.evidence_notes or f"Updated status to {target_status} by {actor_id}."),
         recorded_by=actor_id,
     )
 

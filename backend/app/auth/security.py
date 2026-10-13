@@ -1,5 +1,6 @@
 """Security utilities for Argon2 password hashing and JWT token issuance."""
 
+import contextlib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -33,10 +34,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def verify_dummy_password(plain_password: str) -> None:
     """Run an Argon2 verification against a dummy hash to prevent timing attacks."""
-    try:
+    with contextlib.suppress(Exception):
         _hasher.verify(_DUMMY_HASH, plain_password)
-    except Exception:
-        pass
 
 
 def create_access_token(user_id: str, expires_delta: timedelta | None = None) -> str:
