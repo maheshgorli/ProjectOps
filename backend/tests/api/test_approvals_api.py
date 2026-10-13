@@ -225,10 +225,10 @@ async def test_stale_baseline_proposal_raises_409(
     prop_res = await auth_client.post(f"/api/v1/projects/{project_id}/replan/propose")
     proposal_id = prop_res.json()["proposal_id"]
 
-    # Artificially set baseline_plan_version to 0 to simulate a proposal created against a stale baseline
+    # Artificially set baseline_version to 0 to simulate a proposal created against a stale baseline
     prop = await test_session.get(ReplanProposalORM, proposal_id)
     assert prop is not None
-    prop.baseline_plan_version = 0
+    prop.baseline_version = 0
     await test_session.commit()
 
     # Attempting to approve proposal with stale baseline version should raise 409
