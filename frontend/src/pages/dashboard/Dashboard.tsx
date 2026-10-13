@@ -1,4 +1,4 @@
-
+// TODO(phase-g): Onboarding page currently uses localStorage; rewire to backend API in Phase G.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {

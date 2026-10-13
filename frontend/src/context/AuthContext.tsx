@@ -1,21 +1,11 @@
 import {
-  createContext,
   useEffect,
   useState,
   type ReactNode,
 } from "react";
 import { api, getAuthToken, setAuthToken } from "../services/api";
 import type { AuthUser } from "../types/api";
-
-export type AuthContextType = {
-  user: AuthUser | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, displayName: string, password: string) => Promise<void>;
-  logout: () => void;
-};
-
-export const AuthContext = createContext<AuthContextType | null>(null);
+import { AuthContext } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -81,5 +71,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-export { useAuth } from "./useAuth";
