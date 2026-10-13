@@ -2,7 +2,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { ReactNode } from "react";
 
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
+import { useAuth } from "./context/useAuth";
 
 // Authentication
 import Login from "./pages/auth/Login";
