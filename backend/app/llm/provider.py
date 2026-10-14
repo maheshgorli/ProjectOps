@@ -193,9 +193,11 @@ class GrokProvider:
         client = self._get_client()
         json_schema = json.dumps(schema.model_json_schema(), indent=2)
         schema_instruction = (
-            f"You must reply ONLY with a valid JSON object strictly matching this JSON schema:\n{json_schema}\n"
+            "You must reply ONLY with a valid JSON object strictly matching this JSON schema:\n"
+            f"{json_schema}\n"
             "Do not include any text before or after the JSON object."
         )
+
         full_system = (
             f"{system_prompt}\n\n{schema_instruction}" if system_prompt else schema_instruction
         )
