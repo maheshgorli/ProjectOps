@@ -9,6 +9,7 @@ import os
 import re
 from typing import Protocol, TypeVar
 
+import httpx
 from pydantic import BaseModel
 
 from backend.app.core.config import settings
@@ -103,6 +104,145 @@ class ClaudeProvider:
         return schema.model_validate(parsed_dict)
 
 
+class GrokProvider:
+    """Grok LLM implementation using official xAI API (OpenAI-compatible)."""
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        timeout: float = 60.0,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self.api_key = api_key or settings.xai_api_key or os.getenv("XAI_API_KEY", "")
+        self.model = model or settings.xai_model or os.getenv("XAI_MODEL", "grok-2-latest")
+        self.base_url = (
+            base_url or settings.xai_base_url or os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
+        ).rstrip("/")
+        self.timeout = timeout
+        self._http_client = http_client
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            if not self.api_key:
+                raise ValueError(
+                    "XAI_API_KEY is not configured. "
+                    "Set XAI_API_KEY or explicitly set LLM_PROVIDER=mock for development."
+                )
+            self._http_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+        return self._http_client
+
+    async def generate_text(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+    ) -> str:
+        client = self._get_client()
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.2,
+        }
+        try:
+            response = await client.post("/chat/completions", json=payload)
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(f"xAI API request timed out after {self.timeout}s") from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError(f"xAI API connection error: {exc.__class__.__name__}") from exc
+
+        if response.status_code == 401:
+            raise ValueError("xAI API authentication failed (401 Unauthorized). Verify XAI_API_KEY.")
+        if response.status_code == 429:
+            raise RuntimeError("xAI API rate limit exceeded (429 Too Many Requests).")
+        if response.is_error:
+            raise RuntimeError(
+                f"xAI API request failed with status {response.status_code}: {response.text}"
+            )
+
+        data = response.json()
+        try:
+            return data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f"Malformed response payload from xAI API: {exc}") from exc
+
+    async def generate_structured(
+        self,
+        prompt: str,
+        schema: type[T],
+        system_prompt: str | None = None,
+    ) -> T:
+        client = self._get_client()
+        json_schema = json.dumps(schema.model_json_schema(), indent=2)
+        schema_instruction = (
+            f"You must reply ONLY with a valid JSON object strictly matching this JSON schema:\n{json_schema}\n"
+            "Do not include any text before or after the JSON object."
+        )
+        full_system = (
+            f"{system_prompt}\n\n{schema_instruction}" if system_prompt else schema_instruction
+        )
+
+        messages = [
+            {"role": "system", "content": full_system},
+            {"role": "user", "content": prompt},
+        ]
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            response = await client.post("/chat/completions", json=payload)
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(f"xAI API request timed out after {self.timeout}s") from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError(f"xAI API connection error: {exc.__class__.__name__}") from exc
+
+        if response.status_code == 401:
+            raise ValueError("xAI API authentication failed (401 Unauthorized). Verify XAI_API_KEY.")
+        if response.status_code == 429:
+            raise RuntimeError("xAI API rate limit exceeded (429 Too Many Requests).")
+        if response.is_error:
+            raise RuntimeError(
+                f"xAI API request failed with status {response.status_code}: {response.text}"
+            )
+
+        data = response.json()
+        try:
+            raw_text = data["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f"Malformed response payload from xAI API: {exc}") from exc
+
+        # Extract JSON from potential markdown code fences
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_text)
+        json_str = match.group(1).strip() if match else raw_text
+
+        try:
+            parsed_dict = json.loads(json_str)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON returned by xAI API: {exc}") from exc
+
+        try:
+            return schema.model_validate(parsed_dict)
+        except Exception as exc:
+            raise ValueError(
+                f"xAI output failed schema validation for {schema.__name__}: {exc}"
+            ) from exc
+
+
 class MockLLMProvider:
     """Deterministic, offline mock provider for automated tests and fallback."""
 
@@ -178,6 +318,7 @@ def get_llm_provider() -> LLMProvider:
 
     Enforces:
     - If LLM_PROVIDER is 'claude', ANTHROPIC_API_KEY is required; raises ValueError if missing.
+    - If LLM_PROVIDER is 'grok' or 'xai', XAI_API_KEY is required; raises ValueError if missing.
     - 'mock' is allowed only when explicitly set via LLM_PROVIDER=mock.
     - Unknown providers raise ValueError.
     """
@@ -192,4 +333,19 @@ def get_llm_provider() -> LLMProvider:
                 "Set ANTHROPIC_API_KEY or explicitly set LLM_PROVIDER=mock for development."
             )
         return ClaudeProvider(api_key=api_key, model=settings.anthropic_model)
-    raise ValueError(f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude' or 'mock'.")
+    if provider_type in ("grok", "xai"):
+        api_key = settings.xai_api_key or os.getenv("XAI_API_KEY", "")
+        if not api_key:
+            raise ValueError(
+                "XAI_API_KEY is not configured. "
+                "Set XAI_API_KEY or explicitly set LLM_PROVIDER=mock for development."
+            )
+        return GrokProvider(
+            api_key=api_key,
+            model=settings.xai_model,
+            base_url=settings.xai_base_url,
+        )
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude', 'grok', or 'mock'."
+    )
+

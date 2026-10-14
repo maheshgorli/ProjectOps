@@ -30,9 +30,16 @@ async def get_ai_info(
     """Return active AI provider and model metadata (authenticated users)."""
     provider_name = (settings.llm_provider or "").lower().strip()
     is_mock = provider_name == "mock"
+    if is_mock:
+        active_model = "mock-provider"
+    elif provider_name in ("grok", "xai"):
+        active_model = settings.xai_model
+    else:
+        active_model = settings.anthropic_model
+
     return AIInfoResponse(
         provider=provider_name,
-        model=settings.anthropic_model if not is_mock else "mock-provider",
+        model=active_model,
         is_mock=is_mock,
     )
 
@@ -69,6 +76,17 @@ async def decompose_goal_endpoint(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
 
 
 @router.post(
@@ -111,16 +129,28 @@ async def explain_replan_endpoint(
 
     explainer = ReplanExplainer(provider)
 
-    explanation_text = await explainer.explain_replan(
-        baseline_version=req.baseline_version,
-        proposed_version=req.proposed_version,
-        baseline_finish_date=req.baseline_finish_date,
-        proposed_finish_date=req.proposed_finish_date,
-        finish_date_delta_days=req.finish_date_delta_days,
-        mitigation_notes=req.mitigation_notes,
-    )
+    try:
+        explanation_text = await explainer.explain_replan(
+            baseline_version=req.baseline_version,
+            proposed_version=req.proposed_version,
+            baseline_finish_date=req.baseline_finish_date,
+            proposed_finish_date=req.proposed_finish_date,
+            finish_date_delta_days=req.finish_date_delta_days,
+            mitigation_notes=req.mitigation_notes,
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
     return ReplanExplanationResponse(
         project_id=project_id,
         explanation=explanation_text,
     )
+

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-3-7-sonnet-20250219"
 
+    # xAI (Grok) Settings
+    xai_api_key: str | None = None
+    xai_base_url: str = "https://api.x.ai/v1"
+    xai_model: str = "grok-2-latest"
+
     # GitHub Webhook Settings
     # No fallback secret allowed; must be explicitly configured
     github_webhook_secret: str | None = None
