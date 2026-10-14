@@ -219,7 +219,10 @@ async def test_explain_replan_with_grok_provider(
                     {
                         "message": {
                             "role": "assistant",
-                            "content": "Grok Replan Explanation: Schedule stabilized via critical path realignment.",
+                            "content": (
+                                "Grok Replan Explanation: "
+                                "Schedule stabilized via critical path realignment."
+                            ),
                         }
                     }
                 ]
