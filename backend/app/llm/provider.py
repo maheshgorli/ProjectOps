@@ -123,20 +123,22 @@ class GrokProvider:
         self.timeout = timeout
         self._http_client = http_client
 
+    def _get_headers(self) -> dict[str, str]:
+        if not self.api_key:
+            raise ValueError(
+                "XAI_API_KEY is not configured. "
+                "Set XAI_API_KEY or explicitly set LLM_PROVIDER=mock for development."
+            )
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
     def _get_client(self) -> httpx.AsyncClient:
         if self._http_client is None:
-            if not self.api_key:
-                raise ValueError(
-                    "XAI_API_KEY is not configured. "
-                    "Set XAI_API_KEY or explicitly set LLM_PROVIDER=mock for development."
-                )
             self._http_client = httpx.AsyncClient(
                 base_url=self.base_url,
                 timeout=self.timeout,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
             )
         return self._http_client
 
@@ -145,6 +147,7 @@ class GrokProvider:
         prompt: str,
         system_prompt: str | None = None,
     ) -> str:
+        headers = self._get_headers()
         client = self._get_client()
         messages = []
         if system_prompt:
@@ -157,14 +160,17 @@ class GrokProvider:
             "temperature": 0.2,
         }
         try:
-            response = await client.post("/chat/completions", json=payload)
+            response = await client.post("/chat/completions", json=payload, headers=headers)
+
         except httpx.TimeoutException as exc:
             raise TimeoutError(f"xAI API request timed out after {self.timeout}s") from exc
         except httpx.RequestError as exc:
             raise RuntimeError(f"xAI API connection error: {exc.__class__.__name__}") from exc
 
         if response.status_code == 401:
-            raise ValueError("xAI API authentication failed (401 Unauthorized). Verify XAI_API_KEY.")
+            raise ValueError(
+                "xAI API authentication failed (401 Unauthorized). Verify XAI_API_KEY."
+            )
         if response.status_code == 429:
             raise RuntimeError("xAI API rate limit exceeded (429 Too Many Requests).")
         if response.is_error:
@@ -194,6 +200,7 @@ class GrokProvider:
             f"{system_prompt}\n\n{schema_instruction}" if system_prompt else schema_instruction
         )
 
+        headers = self._get_headers()
         messages = [
             {"role": "system", "content": full_system},
             {"role": "user", "content": prompt},
@@ -205,14 +212,17 @@ class GrokProvider:
             "response_format": {"type": "json_object"},
         }
         try:
-            response = await client.post("/chat/completions", json=payload)
+            response = await client.post("/chat/completions", json=payload, headers=headers)
+
         except httpx.TimeoutException as exc:
             raise TimeoutError(f"xAI API request timed out after {self.timeout}s") from exc
         except httpx.RequestError as exc:
             raise RuntimeError(f"xAI API connection error: {exc.__class__.__name__}") from exc
 
         if response.status_code == 401:
-            raise ValueError("xAI API authentication failed (401 Unauthorized). Verify XAI_API_KEY.")
+            raise ValueError(
+                "xAI API authentication failed (401 Unauthorized). Verify XAI_API_KEY."
+            )
         if response.status_code == 429:
             raise RuntimeError("xAI API rate limit exceeded (429 Too Many Requests).")
         if response.is_error:
@@ -348,4 +358,3 @@ def get_llm_provider() -> LLMProvider:
     raise ValueError(
         f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude', 'grok', or 'mock'."
     )
-

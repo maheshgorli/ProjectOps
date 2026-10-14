@@ -88,7 +88,6 @@ async def decompose_goal_endpoint(
         ) from exc
 
 
-
 @router.post(
     "/projects/{project_id}/ai/decompose-goal",
     response_model=GoalDecompositionResponse,
@@ -153,4 +152,3 @@ async def explain_replan_endpoint(
         project_id=project_id,
         explanation=explanation_text,
     )
-
