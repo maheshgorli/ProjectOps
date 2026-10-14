@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.models.auth import ProjectMembershipORM
 from backend.app.models.project import MemberORM, ProjectORM
 
 
@@ -48,6 +49,18 @@ class ProjectRepository:
         """List all projects with members loaded."""
         stmt = (
             select(ProjectORM)
+            .options(selectinload(ProjectORM.members))
+            .order_by(ProjectORM.created_at.desc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def list_user_projects(self, user_id: str) -> Sequence[ProjectORM]:
+        """List all projects where user has a membership."""
+        stmt = (
+            select(ProjectORM)
+            .join(ProjectMembershipORM, ProjectORM.id == ProjectMembershipORM.project_id)
+            .where(ProjectMembershipORM.user_id == user_id)
             .options(selectinload(ProjectORM.members))
             .order_by(ProjectORM.created_at.desc())
         )

@@ -256,6 +256,23 @@ export interface TaskStatusUpdateRequest {
   percent_complete?: number | null;
   blocked_reason?: string | null;
   evidence_notes?: string;
-  updated_by?: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface PlanActivateRequest {
+  rationale: string;
 }
 

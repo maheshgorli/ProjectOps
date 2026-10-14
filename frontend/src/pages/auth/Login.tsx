@@ -1,22 +1,36 @@
-
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setErrorMessage(null);
 
-    if (!name.trim() || !email.trim()) return;
+    if (!email.trim() || !password) {
+      setErrorMessage("Please enter both email and password.");
+      return;
+    }
 
-    login(name, email);
-    navigate("/workspace");
+    setIsSubmitting(true);
+    try {
+      await login(email, password);
+      navigate("/workspace");
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to sign in. Please verify your credentials."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -40,28 +54,19 @@ export default function Login() {
           onSubmit={handleSubmit}
           className="space-y-5 rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
         >
-          <div>
-            <label htmlFor="name" className="mb-2 block text-sm font-medium">
-              Your name
-            </label>
-
-            <input
-              id="name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-700"
-            />
-          </div>
+          {errorMessage && (
+            <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600 border border-red-200">
+              {errorMessage}
+            </div>
+          )}
 
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-medium">
+            <label htmlFor="login-email" className="mb-2 block text-sm font-medium">
               Email address
             </label>
 
             <input
-              id="email"
+              id="login-email"
               type="email"
               required
               value={email}
@@ -71,16 +76,29 @@ export default function Login() {
             />
           </div>
 
+          <div>
+            <label htmlFor="login-password" className="mb-2 block text-sm font-medium">
+              Password
+            </label>
+
+            <input
+              id="login-password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-700"
+            />
+          </div>
+
           <button
             type="submit"
-            className="w-full rounded-lg bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-700"
+            disabled={isSubmitting}
+            className="w-full rounded-lg bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
           >
-            Continue
+            {isSubmitting ? "Signing in..." : "Continue"}
           </button>
-
-          <p className="text-center text-xs text-slate-400">
-            Frontend demo only — no identity verification.
-          </p>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">

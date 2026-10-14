@@ -7,7 +7,6 @@ import {
   Calendar,
   Sparkles,
   ArrowRight,
-  UserCheck,
 } from 'lucide-react';
 import type { ReplanCandidate } from '../types/api';
 
@@ -15,8 +14,8 @@ interface ReplanApprovalModalProps {
   isOpen: boolean;
   onClose: () => void;
   candidate: ReplanCandidate | null;
-  onApprove: (rationale: string, decidedBy: string) => Promise<void>;
-  onReject: (rationale: string, decidedBy: string) => Promise<void>;
+  onApprove: (rationale: string) => Promise<void>;
+  onReject: (rationale: string) => Promise<void>;
   isSubmitting: boolean;
 }
 
@@ -28,7 +27,6 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
   onReject,
   isSubmitting,
 }) => {
-  const [decidedBy, setDecidedBy] = useState('Jane Doe (Human Operator)');
   const [rationale, setRationale] = useState(
     'Approved automated risk mitigation candidate to eliminate capacity overload.',
   );
@@ -37,13 +35,13 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
   if (!isOpen || !candidate) return null;
 
   const handleApprove = async () => {
-    if (!decidedBy.trim() || rationale.trim().length < 3) {
-      setErrorMessage('Please provide a valid operator name and rationale (min 3 chars).');
+    if (rationale.trim().length < 3) {
+      setErrorMessage('Please provide a valid rationale (min 3 chars).');
       return;
     }
     setErrorMessage(null);
     try {
-      await onApprove(rationale, decidedBy);
+      await onApprove(rationale);
       onClose();
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Approval failed');
@@ -51,13 +49,13 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
   };
 
   const handleReject = async () => {
-    if (!decidedBy.trim() || rationale.trim().length < 3) {
-      setErrorMessage('Please provide a valid operator name and reason for rejection.');
+    if (rationale.trim().length < 3) {
+      setErrorMessage('Please provide a reason for rejection (min 3 chars).');
       return;
     }
     setErrorMessage(null);
     try {
-      await onReject(rationale, decidedBy);
+      await onReject(rationale);
       onClose();
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Rejection failed');
@@ -153,20 +151,6 @@ export const ReplanApprovalModal: React.FC<ReplanApprovalModalProps> = ({
 
           {/* Governance Form Inputs */}
           <div className="space-y-3">
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                <UserCheck className="h-3.5 w-3.5 text-indigo-400" />
-                Decided By (Operator Name / Role):
-              </label>
-              <input
-                type="text"
-                value={decidedBy}
-                onChange={(e) => setDecidedBy(e.target.value)}
-                placeholder="e.g. Lead Engineer Jane Doe"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
             <div>
               <label className="text-xs font-semibold text-slate-300">
                 Decision Rationale & Governance Record:

@@ -2,12 +2,16 @@
 
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.auth.deps import (
+    require_project_member,
+    require_project_owner,
+)
 from backend.app.db.session import get_async_session
+from backend.app.models.auth import ProjectMembershipORM
 from backend.app.repositories.history_repository import HistoryRepository
-from backend.app.repositories.project_repository import ProjectRepository
 from backend.app.schemas.history import (
     DecisionCreateRequest,
     DecisionResponse,
@@ -28,25 +32,19 @@ router = APIRouter(prefix="/projects/{project_id}", tags=["history"])
 async def record_progress_event(
     project_id: str,
     req: ProgressEventCreateRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> ProgressEventResponse:
     """Append a task progress event to the audit trail (Rule 5: append-only)."""
-    project_repo = ProjectRepository(session)
-    project = await project_repo.get_project(project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found.",
-        )
-
     history_repo = HistoryRepository(session)
+    actor_id = _membership.user_id
     event = await history_repo.record_progress(
         project_id=project_id,
         task_id=req.task_id,
         new_status=req.new_status,
         previous_status=req.previous_status,
         evidence_notes=req.evidence_notes,
-        recorded_by=req.recorded_by,
+        recorded_by=actor_id,
     )
     await session.commit()
     return ProgressEventResponse.model_validate(event)
@@ -56,6 +54,7 @@ async def record_progress_event(
 async def list_progress_history(
     project_id: str,
     task_id: str | None = Query(None, description="Filter by task ID"),
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> Sequence[ProgressEventResponse]:
     """Retrieve chronological progress history for a project or specific task."""
@@ -72,25 +71,19 @@ async def list_progress_history(
 async def record_decision(
     project_id: str,
     req: DecisionCreateRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_owner),
     session: AsyncSession = Depends(get_async_session),
 ) -> DecisionResponse:
-    """Record a replan or governance decision (Rule 4: Replanning requires approval)."""
-    project_repo = ProjectRepository(session)
-    project = await project_repo.get_project(project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found.",
-        )
-
+    """Record a replan or governance decision (Owner only)."""
     history_repo = HistoryRepository(session)
+    actor_id = _membership.user_id
     decision = await history_repo.record_decision(
         project_id=project_id,
         plan_id=req.plan_id,
         decision_type=req.decision_type,
         summary=req.summary,
         rationale=req.rationale,
-        decided_by=req.decided_by,
+        decided_by=actor_id,
     )
     await session.commit()
     return DecisionResponse.model_validate(decision)
@@ -99,6 +92,7 @@ async def record_decision(
 @router.get("/decisions", response_model=list[DecisionResponse])
 async def list_decisions(
     project_id: str,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> Sequence[DecisionResponse]:
     """Retrieve all governance and replan decisions for a project."""
@@ -115,17 +109,10 @@ async def list_decisions(
 async def record_risk(
     project_id: str,
     req: RiskEventCreateRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> RiskEventResponse:
     """Record a detected risk anomaly in the immutable risk register."""
-    project_repo = ProjectRepository(session)
-    project = await project_repo.get_project(project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found.",
-        )
-
     history_repo = HistoryRepository(session)
     risk = await history_repo.record_risk_event(
         project_id=project_id,
@@ -142,6 +129,7 @@ async def record_risk(
 async def list_risks(
     project_id: str,
     min_severity: str | None = Query(None, description="Filter by minimum severity"),
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> Sequence[RiskEventResponse]:
     """Retrieve all risk anomaly events recorded for a project."""

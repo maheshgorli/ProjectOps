@@ -2,24 +2,27 @@
 
 import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.app.models.auth import UserORM
+from backend.app.models.proposal import ReplanProposalORM
 
 
 @pytest.mark.asyncio
-async def test_approve_candidate_replan(client: httpx.AsyncClient):
+async def test_approve_candidate_replan(auth_client: httpx.AsyncClient, auth_user: UserORM):
     # 1. Create project and team member
-    p_res = await client.post("/api/v1/projects", json={"name": "Approval Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Approval Project"})
     assert p_res.status_code == 201
     project_id = p_res.json()["id"]
 
-    m_res = await client.post(
+    m_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/members",
         json={"name": "Dev Alice", "role": "engineer", "daily_capacity_hours": 8.0},
     )
     alice_id = m_res.json()["id"]
 
-    # 2. Create baseline plan v1
+    # 2. Create baseline plan v1 and activate it
     v1_payload = {
-        "version": 1,
         "name": "Plan v1",
         "tasks": [
             {
@@ -31,28 +34,36 @@ async def test_approve_candidate_replan(client: httpx.AsyncClient):
         ],
         "dependencies": [],
     }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    p_v1 = await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    assert p_v1.status_code == 201
+    act_res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial baseline activation"},
+    )
+    assert act_res.status_code == 200
 
     # 3. Propose candidate replan via server-side engine
-    prop_res = await client.post(f"/api/v1/projects/{project_id}/replan/propose")
+    prop_res = await auth_client.post(f"/api/v1/projects/{project_id}/replan/propose")
     assert prop_res.status_code == 200
     prop_data = prop_res.json()
     proposal_id = prop_data["proposal_id"]
     assert proposal_id is not None
 
     # Verify proposal is listed in proposals API
-    list_res = await client.get(f"/api/v1/projects/{project_id}/replan/proposals")
+    list_res = await auth_client.get(f"/api/v1/projects/{project_id}/replan/proposals")
     assert list_res.status_code == 200
     assert len(list_res.json()) >= 1
     assert any(p["id"] == proposal_id for p in list_res.json())
 
-    # 4. Officially approve candidate replan using proposal_id only (P0-1 Fix)
+    # 4. Officially approve candidate replan using proposal_id only
+    # (P0-1 Fix, server derives decided_by)
     approval_payload = {
         "proposal_id": proposal_id,
         "decision_rationale": "Splitting task into setup and testing to de-risk delivery.",
-        "decided_by": "Engineering Lead Jane",
     }
-    res = await client.post(f"/api/v1/projects/{project_id}/replan/approve", json=approval_payload)
+    res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/replan/approve", json=approval_payload
+    )
     assert res.status_code == 200
     data = res.json()
 
@@ -63,33 +74,33 @@ async def test_approve_candidate_replan(client: httpx.AsyncClient):
     assert "upgraded to v2" in data["summary"].lower()
 
     # 5. Confirm new active plan is v2
-    active_res = await client.get(f"/api/v1/projects/{project_id}/plans/active")
+    active_res = await auth_client.get(f"/api/v1/projects/{project_id}/plans/active")
     assert active_res.status_code == 200
     assert active_res.json()["version"] == 2
 
     # 6. Rule 5: Verify decision audit trail record
-    decisions_res = await client.get(f"/api/v1/projects/{project_id}/decisions")
+    decisions_res = await auth_client.get(f"/api/v1/projects/{project_id}/decisions")
     assert decisions_res.status_code == 200
     decisions = decisions_res.json()
     assert len(decisions) >= 1
     approval_decision = [d for d in decisions if d["decision_type"] == "REPLAN_APPROVED"][0]
-    assert approval_decision["decided_by"] == "Engineering Lead Jane"
+    assert approval_decision["decided_by"] == auth_user.id
     assert "Splitting task" in approval_decision["rationale"]
 
     # 7. Verify progress history event recorded
-    history_res = await client.get(f"/api/v1/projects/{project_id}/history/progress")
+    history_res = await auth_client.get(f"/api/v1/projects/{project_id}/history/progress")
     assert history_res.status_code == 200
     history = history_res.json()
     assert any("v2" in h["new_status"] for h in history)
 
 
 @pytest.mark.asyncio
-async def test_client_tampered_plan_body_fails_validation_p0_1(client: httpx.AsyncClient):
+async def test_client_tampered_plan_body_fails_validation_p0_1(auth_client: httpx.AsyncClient):
     """
     P0-1 Security Test: Clients can no longer supply custom JSON candidate_plan payloads.
     Direct injection of arbitrary plans must fail schema validation (HTTP 422).
     """
-    p_res = await client.post("/api/v1/projects", json={"name": "Tamper Test Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Tamper Test Project"})
     project_id = p_res.json()["id"]
 
     tampered_payload = {
@@ -107,37 +118,42 @@ async def test_client_tampered_plan_body_fails_validation_p0_1(client: httpx.Asy
             "dependencies": [],
         },
         "decision_rationale": "Attacker attempting to inject plan",
-        "decided_by": "malicious_actor",
     }
-    res = await client.post(f"/api/v1/projects/{project_id}/replan/approve", json=tampered_payload)
+    res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/replan/approve", json=tampered_payload
+    )
     assert res.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_reject_candidate_replan(client: httpx.AsyncClient):
-    p_res = await client.post("/api/v1/projects", json={"name": "Reject Project"})
+async def test_reject_candidate_replan(auth_client: httpx.AsyncClient, auth_user: UserORM):
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Reject Project"})
     project_id = p_res.json()["id"]
 
     v1_payload = {
-        "version": 1,
         "name": "Plan v1",
         "tasks": [{"id": "T1", "title": "Feature 1", "estimated_hours": 8.0}],
         "dependencies": [],
     }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial activation"},
+    )
 
     # Generate server proposal
-    prop_res = await client.post(f"/api/v1/projects/{project_id}/replan/propose")
+    prop_res = await auth_client.post(f"/api/v1/projects/{project_id}/replan/propose")
     assert prop_res.status_code == 200
     proposal_id = prop_res.json()["proposal_id"]
 
-    # Reject the server proposition
+    # Reject the server proposition (decided_by derived by server)
     reject_payload = {
         "proposal_id": proposal_id,
         "rationale": "Scope addition is unnecessary before client demo.",
-        "decided_by": "Product Director Bob",
     }
-    res = await client.post(f"/api/v1/projects/{project_id}/replan/reject", json=reject_payload)
+    res = await auth_client.post(
+        f"/api/v1/projects/{project_id}/replan/reject", json=reject_payload
+    )
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "REJECTED"
@@ -145,18 +161,19 @@ async def test_reject_candidate_replan(client: httpx.AsyncClient):
     assert data["proposal_id"] == proposal_id
 
     # Active plan remains unchanged at v1
-    active_res = await client.get(f"/api/v1/projects/{project_id}/plans/active")
+    active_res = await auth_client.get(f"/api/v1/projects/{project_id}/plans/active")
     assert active_res.status_code == 200
     assert active_res.json()["version"] == 1
 
     # Verify decision record
-    decisions_res = await client.get(f"/api/v1/projects/{project_id}/decisions")
+    decisions_res = await auth_client.get(f"/api/v1/projects/{project_id}/decisions")
     assert decisions_res.status_code == 200
     decisions = decisions_res.json()
-    assert any(d["decision_type"] == "REPLAN_REJECTED" for d in decisions)
+    rejection = [d for d in decisions if d["decision_type"] == "REPLAN_REJECTED"][0]
+    assert rejection["decided_by"] == auth_user.id
 
     # Verify proposal status in DB is REJECTED
-    prop_status_res = await client.get(
+    prop_status_res = await auth_client.get(
         f"/api/v1/projects/{project_id}/replan/proposals/{proposal_id}"
     )
     assert prop_status_res.status_code == 200
@@ -164,63 +181,63 @@ async def test_reject_candidate_replan(client: httpx.AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_approvals_api_project_not_found(client: httpx.AsyncClient):
+async def test_approvals_api_project_not_found(auth_client: httpx.AsyncClient):
     fake_id = "non_existent_project_uuid"
-    res1 = await client.post(
+    res1 = await auth_client.post(
         f"/api/v1/projects/{fake_id}/replan/approve",
         json={
             "proposal_id": "non-existent-prop-id",
             "decision_rationale": "Valid rationale for non-existent project",
-            "decided_by": "admin",
         },
     )
     assert res1.status_code == 404
 
-    res2 = await client.post(
+    res2 = await auth_client.post(
         f"/api/v1/projects/{fake_id}/replan/reject",
         json={
             "proposal_id": "non-existent-prop-id",
             "rationale": "not needed",
-            "decided_by": "admin",
         },
     )
     assert res2.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_stale_baseline_proposal_raises_409(client: httpx.AsyncClient):
+async def test_stale_baseline_proposal_raises_409(
+    auth_client: httpx.AsyncClient,
+    test_session: AsyncSession,
+):
     """Proposals generated against an older plan version are rejected with 409 Conflict."""
-    p_res = await client.post("/api/v1/projects", json={"name": "Stale Proposal Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Stale Proposal Project"})
     project_id = p_res.json()["id"]
 
     v1_payload = {
-        "version": 1,
         "name": "Plan v1",
         "tasks": [{"id": "T1", "title": "Task 1", "estimated_hours": 8.0}],
         "dependencies": [],
     }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial activation"},
+    )
 
     # Generate proposal against v1
-    prop_res = await client.post(f"/api/v1/projects/{project_id}/replan/propose")
+    prop_res = await auth_client.post(f"/api/v1/projects/{project_id}/replan/propose")
     proposal_id = prop_res.json()["proposal_id"]
 
-    # Directly create and activate plan v2
-    v2_payload = {
-        "version": 2,
-        "name": "Direct Plan v2",
-        "tasks": [{"id": "T1", "title": "Task 1", "estimated_hours": 8.0}],
-        "dependencies": [],
-    }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=v2_payload)
+    # Artificially set baseline_version to 0 to simulate a proposal created against a stale baseline
+    prop = await test_session.get(ReplanProposalORM, proposal_id)
+    assert prop is not None
+    prop.baseline_version = 0
+    await test_session.commit()
 
-    # Attempting to approve proposal from v1 while active plan is now v2 should raise 409
-    res = await client.post(
+    # Attempting to approve proposal with stale baseline version should raise 409
+    res = await auth_client.post(
         f"/api/v1/projects/{project_id}/replan/approve",
         json={
             "proposal_id": proposal_id,
             "decision_rationale": "Trying to approve outdated proposal",
-            "decided_by": "admin",
         },
     )
     assert res.status_code == 409
@@ -228,40 +245,41 @@ async def test_stale_baseline_proposal_raises_409(client: httpx.AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_non_pending_proposal_raises_409(client: httpx.AsyncClient):
+async def test_non_pending_proposal_raises_409(auth_client: httpx.AsyncClient):
     """Proposals that are already APPROVED, REJECTED, or SUPERSEDED cannot be approved again."""
-    p_res = await client.post("/api/v1/projects", json={"name": "Re-approval Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "Re-approval Project"})
     project_id = p_res.json()["id"]
 
     v1_payload = {
-        "version": 1,
         "name": "Plan v1",
         "tasks": [{"id": "T1", "title": "Task 1", "estimated_hours": 8.0}],
         "dependencies": [],
     }
-    await client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    await auth_client.post(f"/api/v1/projects/{project_id}/plans", json=v1_payload)
+    await auth_client.post(
+        f"/api/v1/projects/{project_id}/plans/1/activate",
+        json={"rationale": "Initial activation"},
+    )
 
-    prop_res = await client.post(f"/api/v1/projects/{project_id}/replan/propose")
+    prop_res = await auth_client.post(f"/api/v1/projects/{project_id}/replan/propose")
     proposal_id = prop_res.json()["proposal_id"]
 
     # Approve proposal once
-    app_res = await client.post(
+    app_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/replan/approve",
         json={
             "proposal_id": proposal_id,
             "decision_rationale": "First approval",
-            "decided_by": "lead",
         },
     )
     assert app_res.status_code == 200
 
     # Attempt to approve again -> 409 Conflict
-    re_app_res = await client.post(
+    re_app_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/replan/approve",
         json={
             "proposal_id": proposal_id,
             "decision_rationale": "Second approval attempt",
-            "decided_by": "lead",
         },
     )
     assert re_app_res.status_code == 409

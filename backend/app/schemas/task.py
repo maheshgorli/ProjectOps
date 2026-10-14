@@ -37,9 +37,6 @@ class TaskStatusUpdateRequest(BaseModel):
     evidence_notes: str = Field(
         default="", description="Audit evidence or commentary for progress history."
     )
-    updated_by: str = Field(
-        default="user", min_length=1, description="Operator or agent ID making this update."
-    )
 
 
 class TaskMergedResponse(BaseModel):

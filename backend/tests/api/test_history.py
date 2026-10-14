@@ -5,56 +5,59 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_history_decisions_and_risks_api(client: httpx.AsyncClient):
+async def test_history_decisions_and_risks_api(
+    auth_client: httpx.AsyncClient,
+    auth_user,
+):
     # 1. Create Project
-    p_res = await client.post("/api/v1/projects", json={"name": "History API Project"})
+    p_res = await auth_client.post("/api/v1/projects", json={"name": "History API Project"})
     assert p_res.status_code == 201
     project_id = p_res.json()["id"]
 
-    # 2. Record Progress Event
-    prog_res = await client.post(
+    # 2. Record Progress Event (server derives recorded_by from authenticated user)
+    prog_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/history/progress",
         json={
             "task_id": "TASK-101",
             "new_status": "IN_PROGRESS",
             "previous_status": "TODO",
             "evidence_notes": "PR #42 opened on GitHub",
-            "recorded_by": "github-webhook-worker",
         },
     )
     assert prog_res.status_code == 201
     prog_data = prog_res.json()
     assert prog_data["task_id"] == "TASK-101"
     assert prog_data["new_status"] == "IN_PROGRESS"
+    assert prog_data["recorded_by"] == auth_user.id
 
     # Query Progress Events
-    list_prog_res = await client.get(
+    list_prog_res = await auth_client.get(
         f"/api/v1/projects/{project_id}/history/progress",
         params={"task_id": "TASK-101"},
     )
     assert list_prog_res.status_code == 200
     assert len(list_prog_res.json()) == 1
 
-    # 3. Record Governance Decision
-    dec_res = await client.post(
+    # 3. Record Governance Decision (server derives decided_by from authenticated owner)
+    dec_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/decisions",
         json={
             "decision_type": "REPLAN_APPROVAL",
             "summary": "Approved shifting milestone 1 week forward",
             "rationale": "Key dependency delayed by upstream provider",
-            "decided_by": "engineering_manager_bob",
         },
     )
     assert dec_res.status_code == 201
     dec_data = dec_res.json()
     assert dec_data["decision_type"] == "REPLAN_APPROVAL"
+    assert dec_data["decided_by"] == auth_user.id
 
-    list_dec_res = await client.get(f"/api/v1/projects/{project_id}/decisions")
+    list_dec_res = await auth_client.get(f"/api/v1/projects/{project_id}/decisions")
     assert list_dec_res.status_code == 200
     assert len(list_dec_res.json()) == 1
 
     # 4. Record Risk Event
-    risk_res = await client.post(
+    risk_res = await auth_client.post(
         f"/api/v1/projects/{project_id}/risks",
         json={
             "risk_type": "CAPACITY_BOTTLENECK",
@@ -67,7 +70,7 @@ async def test_history_decisions_and_risks_api(client: httpx.AsyncClient):
     risk_data = risk_res.json()
     assert risk_data["severity"] == "CRITICAL"
 
-    list_risks_res = await client.get(
+    list_risks_res = await auth_client.get(
         f"/api/v1/projects/{project_id}/risks",
         params={"min_severity": "CRITICAL"},
     )

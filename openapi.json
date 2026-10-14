@@ -6,43 +6,45 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/api/v1/projects": {
+    "/api/v1/health": {
       "get": {
         "tags": [
-          "projects"
+          "system"
         ],
-        "summary": "List Projects",
-        "description": "List all projects.",
-        "operationId": "list_projects_api_v1_projects_get",
+        "summary": "System health check",
+        "description": "Return 200 OK indicating the API service is operational.",
+        "operationId": "health_check_api_v1_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectResponse"
+                  "additionalProperties": {
+                    "type": "string"
                   },
-                  "type": "array",
-                  "title": "Response List Projects Api V1 Projects Get"
+                  "type": "object",
+                  "title": "Response Health Check Api V1 Health Get"
                 }
               }
             }
           }
         }
-      },
+      }
+    },
+    "/api/v1/auth/register": {
       "post": {
         "tags": [
-          "projects"
+          "auth"
         ],
-        "summary": "Create Project",
-        "description": "Create a new project.",
-        "operationId": "create_project_api_v1_projects_post",
+        "summary": "Register a new user account",
+        "description": "Register a new user account.\n\nEnforces:\n- Password minimum length 10 characters.\n- Case-insensitive email uniqueness (returns generic 409 Conflict without leaking).\n- Email stored in lowercase.\n- Argon2id password hashing.",
+        "operationId": "register_user_api_v1_auth_register_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectCreateRequest"
+                "$ref": "#/components/schemas/UserRegisterRequest"
               }
             }
           },
@@ -54,7 +56,211 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Authenticate and receive an access token",
+        "description": "Authenticate user credentials and issue a signed HS256 JWT access token.\n\nEnforces:\n- Identical generic 401 response for unknown email and wrong password.\n- Constant-time-ish verification (runs dummy Argon2 verify if user is unknown).\n- Rejection of inactive accounts.",
+        "operationId": "login_user_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Retrieve authenticated user profile",
+        "description": "Return the profile information of the currently authenticated user.",
+        "operationId": "get_current_user_profile_api_v1_auth_me_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create Project",
+        "description": "Create a new project and assign caller as owner in the same transaction.",
+        "operationId": "create_project_api_v1_projects_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
                   "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "description": "List only projects accessible to the authenticated caller.",
+        "operationId": "list_projects_api_v1_projects_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectResponse"
+                  },
+                  "title": "Response List Projects Api V1 Projects Get"
                 }
               }
             }
@@ -89,6 +295,22 @@
               "type": "string",
               "title": "Project Id"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -113,6 +335,56 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project",
+        "description": "Delete a project (Owner only).",
+        "operationId": "delete_project_api_v1_projects__project_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/projects/{project_id}/members": {
@@ -121,7 +393,7 @@
           "projects"
         ],
         "summary": "Add Project Member",
-        "description": "Add a team member to a project.",
+        "description": "Add a team member to a project (Owner only).",
         "operationId": "add_project_member_api_v1_projects__project_id__members_post",
         "parameters": [
           {
@@ -131,6 +403,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -183,6 +471,22 @@
               "type": "string",
               "title": "Project Id"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -219,7 +523,7 @@
           "plans"
         ],
         "summary": "Create Plan Snapshot",
-        "description": "Submit a new immutable plan snapshot (Rule 5: version increment, no overwrite).",
+        "description": "Submit a new immutable plan snapshot in DRAFT state (activate=False).\n\nServer assigns monotonically increasing version number (max existing + 1).\nRule 4 & 5: Creating a plan never silently activates it.\nOwner role required.",
         "operationId": "create_plan_snapshot_api_v1_projects__project_id__plans_post",
         "parameters": [
           {
@@ -229,6 +533,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -244,6 +564,84 @@
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanResponseSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/plans/{version}/activate": {
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Activate Initial Plan",
+        "description": "Officially activate an initial plan snapshot (Owner only).\n\nAllowed ONLY when the project currently has NO active plan.\nIf an active plan already exists, changes must go through /replan proposals.\nRecords PLAN_ACTIVATED decision, progress audit event, agent-run APPROVE entry,\nand backfills task execution states in one atomic transaction.",
+        "operationId": "activate_initial_plan_api_v1_projects__project_id__plans__version__activate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanActivateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -282,6 +680,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -325,6 +739,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -378,6 +808,22 @@
               "type": "integer",
               "title": "Version"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -387,6 +833,215 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlanResponseSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/tasks": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "List Project Tasks",
+        "description": "List all tasks from the active plan merged with runtime execution state.\n\nEnforces:\n- Immutable plan snapshots remain the planned baseline truth.\n- Mutable task execution state provides actual runtime progress.\n- OVERDUE is derived dynamically against system clock.",
+        "operationId": "list_project_tasks_api_v1_projects__project_id__tasks_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskMergedResponse"
+                  },
+                  "title": "Response List Project Tasks Api V1 Projects  Project Id  Tasks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/tasks/{task_id}": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Get Project Task",
+        "description": "Retrieve an individual task with its runtime execution state.",
+        "operationId": "get_project_task_api_v1_projects__project_id__tasks__task_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskMergedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/tasks/{task_id}/status": {
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Update Task Status",
+        "description": "Update the execution state of an existing task (any project member).\n\nEnforces:\n- State transition validation (e.g. TODO -> IN_PROGRESS -> COMPLETED).\n- Every status mutation appends a progress-history audit record (Rule 5).\n- Actor is server-derived from authenticated caller (updated_by = user.id).\n- OVERDUE is derived, never stored.",
+        "operationId": "update_task_status_api_v1_projects__project_id__tasks__task_id__status_patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskStatusUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskMergedResponse"
                 }
               }
             }
@@ -458,6 +1113,22 @@
               "title": "Start Date"
             },
             "description": "Override project start date"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -500,6 +1171,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -572,6 +1259,22 @@
               "title": "Version"
             },
             "description": "Specific plan version; defaults to active"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -604,7 +1307,7 @@
           "risks"
         ],
         "summary": "Propose Replan Mitigation",
-        "description": "Generate a deterministically simulated replan candidate to mitigate risks.\n\nRule 3 & 4: Replans are simulated by deterministic scheduler; require human approval.\nDoes NOT write new plan version to DB.",
+        "description": "Generate a deterministically simulated replan candidate to mitigate risks.\n\nRule 3 & 4: Replans are simulated by deterministic scheduler; require human approval.\nCreates a server-stored PENDING proposal in replan_proposals.",
         "operationId": "propose_replan_mitigation_api_v1_projects__project_id__replan_propose_post",
         "parameters": [
           {
@@ -614,6 +1317,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -657,6 +1376,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -727,6 +1462,22 @@
               "title": "Task Id"
             },
             "description": "Filter by task ID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -763,7 +1514,7 @@
           "history"
         ],
         "summary": "Record Decision",
-        "description": "Record a replan or governance decision (Rule 4: Replanning requires approval).",
+        "description": "Record a replan or governance decision (Owner only).",
         "operationId": "record_decision_api_v1_projects__project_id__decisions_post",
         "parameters": [
           {
@@ -773,6 +1524,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -825,6 +1592,22 @@
               "type": "string",
               "title": "Project Id"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -871,6 +1654,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -941,6 +1740,22 @@
               "title": "Min Severity"
             },
             "description": "Filter by minimum severity"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -971,23 +1786,160 @@
         }
       }
     },
+    "/api/v1/ai/info": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Ai Info",
+        "description": "Return active AI provider and model metadata (authenticated users).",
+        "operationId": "get_ai_info_api_v1_ai_info_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIInfoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ai/decompose-goal": {
       "post": {
         "tags": [
           "ai"
         ],
         "summary": "Decompose Goal Endpoint",
-        "description": "Decompose a high-level project goal into structured tasks and dependencies.\n\nRule 2: Validated via Pydantic v2 and TaskGraph. Never writes to DB directly.",
+        "description": "Decompose a high-level project goal into structured tasks and dependencies.\n\nRule 2: Validated via Pydantic v2 and TaskGraph. Never writes to DB directly.\nRequires authentication to protect API credits.",
         "operationId": "decompose_goal_endpoint_api_v1_ai_decompose_goal_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GoalDecompositionRequest"
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalDecompositionResponse"
+                }
+              }
+            }
           },
-          "required": true
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/ai/decompose-goal": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Decompose Goal For Project Endpoint",
+        "description": "Project-scoped route alias for goal decomposition (requires membership).",
+        "operationId": "decompose_goal_for_project_endpoint_api_v1_projects__project_id__ai_decompose_goal_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalDecompositionRequest"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -1019,7 +1971,7 @@
           "ai"
         ],
         "summary": "Explain Replan Endpoint",
-        "description": "Generate an executive explanation grounded in deterministic replan metrics.\n\nRule 3: The LLM explains computed numbers; it never invents them.",
+        "description": "Generate an executive explanation grounded in deterministic replan metrics.\n\nRule 3: The LLM explains computed numbers; it never invents them.\nRequires project membership.",
         "operationId": "explain_replan_endpoint_api_v1_projects__project_id__replan_explain_post",
         "parameters": [
           {
@@ -1029,6 +1981,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -1066,13 +2034,162 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/replan/proposals": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "List Replan Proposals",
+        "description": "List all replan proposals for a project, optionally filtered by status.",
+        "operationId": "list_replan_proposals_api_v1_projects__project_id__replan_proposals_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status: PENDING, APPROVED, REJECTED, SUPERSEDED",
+              "title": "Status"
+            },
+            "description": "Filter by status: PENDING, APPROVED, REJECTED, SUPERSEDED"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReplanProposalResponse"
+                  },
+                  "title": "Response List Replan Proposals Api V1 Projects  Project Id  Replan Proposals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/replan/proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Get Replan Proposal",
+        "description": "Retrieve details of an individual server-stored replan proposal.",
+        "operationId": "get_replan_proposal_api_v1_projects__project_id__replan_proposals__proposal_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplanProposalResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/replan/approve": {
       "post": {
         "tags": [
           "approvals"
         ],
         "summary": "Approve Candidate Replan",
-        "description": "Approve and activate a proposed candidate replan snapshot.\n\nEnforces:\n- Rule 4: Replanning requires human approval. Never silently change a plan.\n- Rule 5: Plans are immutable, versioned snapshots. Never overwrite history.\n- Appends decision record and progress history.",
+        "description": "Approve and activate a server-stored candidate replan snapshot (Owner only).\n\nEnforces:\n- P0-1 Fix: Approval operates only on pre-stored server proposals, never client body plans.\n- Rule 4: Replanning requires human approval. Never silently change a plan.\n- Rule 5: Plans are immutable, versioned snapshots. Never overwrite history.\n- Proposal must exist and have status PENDING.\n- Proposal baseline_version must match the currently active plan version (reject stale).\n- Actor is server-derived from authenticated owner (decided_by = user.id).\n- Carries forward task execution states into the new plan version.",
         "operationId": "approve_candidate_replan_api_v1_projects__project_id__replan_approve_post",
         "parameters": [
           {
@@ -1082,6 +2199,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -1125,7 +2258,7 @@
           "approvals"
         ],
         "summary": "Reject Candidate Replan",
-        "description": "Reject a proposed candidate replan proposition.\n\nEnforces:\n- Rule 4: Replanning requires human approval.\n- Rule 5: Records the rejection in the immutable decision audit trail.\n- Active plan remains unchanged.",
+        "description": "Reject a proposed candidate replan proposition (Owner only).\n\nEnforces:\n- Rule 4: Replanning requires human approval.\n- Rule 5: Records the rejection in the immutable decision audit trail.\n- Active plan remains unchanged.\n- Actor is server-derived from authenticated owner (decided_by = user.id).",
         "operationId": "reject_candidate_replan_api_v1_projects__project_id__replan_reject_post",
         "parameters": [
           {
@@ -1135,6 +2268,22 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -1247,7 +2396,7 @@
           "agent-loop"
         ],
         "summary": "Run Agent Loop Step",
-        "description": "Execute one cycle of the autonomous multi-agent execution loop.\n\nFlow: PLAN -> EXECUTE -> OBSERVE -> REASON -> (REPLAN -> AWAITING_APPROVAL | CONTINUE)\nEnforces Rule 4: If risks are identified, generates candidate replan and pauses at\nAWAITING_APPROVAL for explicit human governance.",
+        "description": "Execute one cycle of the autonomous multi-agent execution loop.\n\nFlow: PLAN -> EXECUTE -> OBSERVE -> REASON -> (REPLAN -> AWAITING_APPROVAL | CONTINUE)\nEnforces Rule 4: If risks are identified, generates candidate replan and pauses at\nAWAITING_APPROVAL for explicit human governance.\nTriggered source is server-derived as user:<user_id>.",
         "operationId": "run_agent_loop_step_api_v1_projects__project_id__agent_loop_step_post",
         "parameters": [
           {
@@ -1260,16 +2409,20 @@
             }
           },
           {
-            "name": "triggered_by",
-            "in": "query",
+            "name": "authorization",
+            "in": "header",
             "required": false,
             "schema": {
-              "type": "string",
-              "description": "Trigger source (manual, timer, webhook)",
-              "default": "manual",
-              "title": "Triggered By"
-            },
-            "description": "Trigger source (manual, timer, webhook)"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -1324,6 +2477,22 @@
               "minimum": 1,
               "default": 20,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -1380,6 +2549,30 @@
   },
   "components": {
     "schemas": {
+      "AIInfoResponse": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "is_mock": {
+            "type": "boolean",
+            "title": "Is Mock"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "is_mock"
+        ],
+        "title": "AIInfoResponse",
+        "description": "Metadata describing the currently active LLM provider configuration."
+      },
       "AgentLoopStatusResponse": {
         "properties": {
           "project_id": {
@@ -1999,14 +3192,25 @@
         "title": "MemberWorkloadResponse",
         "description": "Workload utilization and capacity analysis for a member."
       },
+      "PlanActivateRequest": {
+        "properties": {
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Rationale",
+            "description": "Justification for activating this plan."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rationale"
+        ],
+        "title": "PlanActivateRequest",
+        "description": "Payload to activate an initial plan version."
+      },
       "PlanCreateRequest": {
         "properties": {
-          "version": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Version",
-            "description": "Monotonically increasing version number"
-          },
           "name": {
             "type": "string",
             "maxLength": 255,
@@ -2025,12 +3229,6 @@
             ],
             "title": "Target Completion Date"
           },
-          "created_by": {
-            "type": "string",
-            "maxLength": 255,
-            "title": "Created By",
-            "default": "system"
-          },
           "tasks": {
             "items": {
               "$ref": "#/components/schemas/TaskCreateSchema"
@@ -2046,9 +3244,9 @@
             "title": "Dependencies"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "version",
           "name"
         ],
         "title": "PlanCreateRequest",
@@ -2328,28 +3526,24 @@
       },
       "ReplanApprovalRequest": {
         "properties": {
-          "candidate_plan": {
-            "$ref": "#/components/schemas/PlanCreateRequest",
-            "description": "The candidate replan snapshot to activate."
+          "proposal_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Proposal Id",
+            "description": "ID of server-stored replan proposal to approve."
           },
           "decision_rationale": {
             "type": "string",
             "minLength": 3,
             "title": "Decision Rationale",
             "description": "Justification / context for approving this replan."
-          },
-          "decided_by": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Decided By",
-            "description": "Name or identifier of the human operator granting approval."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "candidate_plan",
-          "decision_rationale",
-          "decided_by"
+          "proposal_id",
+          "decision_rationale"
         ],
         "title": "ReplanApprovalRequest",
         "description": "Request payload to officially approve a candidate replan."
@@ -2359,6 +3553,10 @@
           "project_id": {
             "type": "string",
             "title": "Project Id"
+          },
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
           },
           "previous_version": {
             "type": "integer",
@@ -2388,6 +3586,7 @@
         "type": "object",
         "required": [
           "project_id",
+          "proposal_id",
           "previous_version",
           "new_version",
           "decision_id",
@@ -2399,6 +3598,17 @@
       },
       "ReplanCandidateResponse": {
         "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Id"
+          },
           "project_id": {
             "type": "string",
             "title": "Project Id"
@@ -2515,25 +3725,116 @@
         "title": "ReplanExplanationResponse",
         "description": "Executive explanation generated from deterministic replan metrics."
       },
+      "ReplanProposalResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "baseline_version": {
+            "type": "integer",
+            "title": "Baseline Version"
+          },
+          "candidate_plan": {
+            "$ref": "#/components/schemas/PlanResponseSchema"
+          },
+          "risks_addressed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risks Addressed"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "baseline_version",
+          "candidate_plan",
+          "status",
+          "created_by",
+          "created_at"
+        ],
+        "title": "ReplanProposalResponse",
+        "description": "Detailed view of a server-stored replan proposal snapshot."
+      },
       "ReplanRejectionRequest": {
         "properties": {
+          "proposal_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Proposal Id",
+            "description": "ID of server-stored replan proposal to reject."
+          },
           "rationale": {
             "type": "string",
             "minLength": 3,
             "title": "Rationale",
             "description": "Reason for rejecting the candidate replan."
-          },
-          "decided_by": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Decided By",
-            "description": "Name or identifier of the human operator rejecting the plan."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "rationale",
-          "decided_by"
+          "proposal_id",
+          "rationale"
         ],
         "title": "ReplanRejectionRequest",
         "description": "Request payload to reject a candidate replan proposition."
@@ -2543,6 +3844,10 @@
           "project_id": {
             "type": "string",
             "title": "Project Id"
+          },
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
           },
           "current_version": {
             "type": "integer",
@@ -2565,6 +3870,7 @@
         "type": "object",
         "required": [
           "project_id",
+          "proposal_id",
           "current_version",
           "decision_id",
           "rationale"
@@ -3004,6 +4310,150 @@
         "title": "TaskCreateSchema",
         "description": "Schema for defining a task when creating or updating a plan snapshot."
       },
+      "TaskMergedResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Task identifier, e.g., TASK-01."
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "estimated_hours": {
+            "type": "number",
+            "title": "Estimated Hours"
+          },
+          "assigned_to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Id"
+          },
+          "planned_start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Start Date"
+          },
+          "planned_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Due Date"
+          },
+          "actual_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Start"
+          },
+          "actual_finish": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Finish"
+          },
+          "actual_hours": {
+            "type": "number",
+            "title": "Actual Hours",
+            "default": 0.0
+          },
+          "percent_complete": {
+            "type": "integer",
+            "title": "Percent Complete",
+            "default": 0
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "is_overdue": {
+            "type": "boolean",
+            "title": "Is Overdue",
+            "default": false
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dependencies",
+            "description": "Predecessor task IDs."
+          },
+          "updated_by": {
+            "type": "string",
+            "title": "Updated By",
+            "default": "system"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "title",
+          "description",
+          "status",
+          "estimated_hours",
+          "updated_at"
+        ],
+        "title": "TaskMergedResponse",
+        "description": "Merged representation combining planned truth with runtime execution state."
+      },
       "TaskResponseSchema": {
         "properties": {
           "id": {
@@ -3102,7 +4552,210 @@
           "COMPLETED"
         ],
         "title": "TaskStatus",
-        "description": "Valid task statuses.\nRule: OVERDUE is strictly a derived property, never a stored status."
+        "description": "Valid task statuses.\n\nRule: OVERDUE is strictly a derived property, never a stored status."
+      },
+      "TaskStatusUpdateRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Target status: TODO, IN_PROGRESS, BLOCKED, or COMPLETED."
+          },
+          "actual_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Start",
+            "description": "Actual start date of execution."
+          },
+          "actual_finish": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Finish",
+            "description": "Actual completion date."
+          },
+          "actual_hours": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Hours",
+            "description": "Logged actual execution hours."
+          },
+          "percent_complete": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Complete",
+            "description": "Estimated completion percentage (0-100)."
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason",
+            "description": "Reason if task is BLOCKED."
+          },
+          "evidence_notes": {
+            "type": "string",
+            "title": "Evidence Notes",
+            "description": "Audit evidence or commentary for progress history.",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "TaskStatusUpdateRequest",
+        "description": "Payload to update the runtime execution state of an existing task."
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in"
+        ],
+        "title": "TokenResponse",
+        "description": "JWT bearer token response."
+      },
+      "UserLoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "description": "User email address."
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password",
+            "description": "Account password."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserLoginRequest",
+        "description": "Payload for user authentication."
+      },
+      "UserRegisterRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "description": "User email address (stored lowercase)."
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "description": "Full name or display name."
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password",
+            "description": "Password (minimum 10 characters)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "display_name",
+          "password"
+        ],
+        "title": "UserRegisterRequest",
+        "description": "Payload to register a new user account."
+      },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "is_active",
+          "created_at"
+        ],
+        "title": "UserResponse",
+        "description": "Public user representation (never exposes password_hash)."
       },
       "ValidationError": {
         "properties": {

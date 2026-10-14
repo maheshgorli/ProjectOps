@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.app.domain.models import DependencyType, TaskStatus
 
@@ -51,12 +51,27 @@ class DependencySchema(BaseModel):
 class PlanCreateRequest(BaseModel):
     """Payload to create an immutable plan snapshot."""
 
-    version: int = Field(..., ge=1, description="Monotonically increasing version number")
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=255)
     target_completion_date: date | None = None
-    created_by: str = Field(default="system", max_length=255)
     tasks: list[TaskCreateSchema] = Field(default_factory=list)
     dependencies: list[DependencySchema] = Field(default_factory=list)
+
+
+class PlanActivateRequest(BaseModel):
+    """Payload to activate an initial plan version."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rationale: str = Field(..., min_length=1, description="Justification for activating this plan.")
+
+    @field_validator("rationale")
+    @classmethod
+    def validate_rationale_not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Rationale cannot be blank or whitespace only.")
+        return v.strip()
 
 
 class PlanResponseSchema(BaseModel):

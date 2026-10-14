@@ -22,11 +22,6 @@ class ReplanApprovalRequest(BaseModel):
         min_length=3,
         description="Justification / context for approving this replan.",
     )
-    decided_by: str = Field(
-        ...,
-        min_length=1,
-        description="Name or identifier of the human operator granting approval.",
-    )
 
 
 class ReplanApprovalResponse(BaseModel):
@@ -58,11 +53,6 @@ class ReplanRejectionRequest(BaseModel):
         ...,
         min_length=3,
         description="Reason for rejecting the candidate replan.",
-    )
-    decided_by: str = Field(
-        ...,
-        min_length=1,
-        description="Name or identifier of the human operator rejecting the plan.",
     )
 
 

@@ -78,22 +78,58 @@ uv run alembic upgrade head
 
 ## Running the Application
 
-### 1. Backend Server
+### 1. Environment & Auth Configuration
+
+Create a `.env` file in `backend/` or set environment variables in your shell:
+
 ```bash
-# From repository root or backend/
-uv run uvicorn backend.app.main:app --reload --port 8001
-# Or
-cd backend
-uv run uvicorn app.main:app --reload --port 8001
+# Required for signing JWTs (must be at least 32 characters)
+AUTH_SECRET_KEY=change-this-to-a-secure-random-secret-key-32-chars-min
+
+# LLM provider ("mock" for local dev without API keys, or "claude")
+LLM_PROVIDER=mock
 ```
 
-### 2. Frontend Development Server
+### 2. Backend Server
+
+Run the FastAPI backend on port **8000** (matching Vite frontend proxy):
+
 ```bash
 # From repository root
-npm run dev
+uv run uvicorn backend.app.main:app --reload --port 8000
+```
 
-# Or from frontend/
+### 3. Frontend Development Server
+
+```bash
+# From frontend/
 cd frontend
 npm run dev
 ```
+The frontend is available at `http://localhost:5173`. Vite proxies `/api` calls directly to `http://127.0.0.1:8000`.
+
+---
+
+## Authentication & Authorization (Phase F)
+
+ProjectOps enforces server-side authentication (Argon2id + signed HS256 JWT) and role-based access control (RBAC):
+
+1. **Register**: Navigate to `http://localhost:5173/register` or `POST /api/v1/auth/register` with `{email, display_name, password}` (minimum 10 characters).
+2. **Log In**: Navigate to `http://localhost:5173/login` or `POST /api/v1/auth/login` with `{email, password}` to receive a JWT Bearer token.
+3. **Session Management**: Tokens are held in memory with `sessionStorage` fallback. Non-authenticated users are automatically redirected to `/login`.
+4. **Project RBAC**:
+   - Creating a project assigns the caller as **Owner**.
+   - **404 vs 403 Policy**: Non-members querying any `/projects/{id}/*` route receive `404 Not Found` to prevent leaking project existence. Members attempting owner actions receive `403 Forbidden`.
+   - **Attribution**: Identity fields (`decided_by`, `updated_by`, `created_by`, `recorded_by`) are derived strictly on the server from the authenticated JWT. Client attempts to forge these fields are rejected with `422 Unprocessable Entity`.
+
+---
+
+## Plan Activation Workflow
+
+Plans are immutable versioned snapshots ($v_1 \to v_2$):
+
+1. **Draft Creation**: `POST /api/v1/projects/{id}/plans` creates a draft plan snapshot (`is_active=False`) with server-assigned monotonically increasing versions.
+2. **Approval-Gated Initial Activation**: `POST /api/v1/projects/{id}/plans/{version}/activate` (Owner only) activates the initial plan with a mandatory non-empty rationale. This writes an append-only decision record and backfills task execution states.
+3. **Subsequent Plan Changes**: Once an active plan exists, direct activation is prohibited (HTTP 409). All changes must proceed through the deterministic simulation and human approval loop (`/replan/propose` $\to$ `/replan/approve`).
+
 

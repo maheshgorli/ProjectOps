@@ -1,4 +1,4 @@
-
+// TODO(phase-g): Onboarding page currently uses localStorage; rewire to backend API in Phase G.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,7 +13,7 @@ import {
   ArrowRight,
   CalendarDays,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 type Member = {
   id: string;
@@ -172,7 +172,7 @@ export default function Dashboard() {
 
           <div className="mt-auto border-t border-slate-200 pt-5">
             <p className="mb-3 text-sm font-medium">
-              {user?.name || "Demo User"}
+              {user?.display_name || "Demo User"}
             </p>
 
             <button
@@ -227,7 +227,7 @@ export default function Dashboard() {
           <main className="mx-auto max-w-7xl p-6 lg:p-9">
             <div className="mb-8">
               <h2 className="text-2xl font-semibold">
-                Welcome back, {user?.name || "there"}
+                Welcome back, {user?.display_name || "there"}
               </h2>
               <p className="mt-2 text-sm text-slate-500">
                 {view === "leader"

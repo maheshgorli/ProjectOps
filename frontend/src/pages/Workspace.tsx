@@ -1,7 +1,7 @@
 
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, LogOut, Plus, Users } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 export default function Workspace() {
   const navigate = useNavigate();
@@ -45,7 +45,7 @@ export default function Workspace() {
         </p>
 
         <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-          Welcome, {user.name}
+          Welcome, {user.display_name}
         </h1>
 
         <p className="mt-3 text-slate-500">

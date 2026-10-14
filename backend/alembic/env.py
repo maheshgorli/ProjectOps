@@ -21,6 +21,8 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     url = get_database_url()
+    if url.startswith("sqlite:///") and not url.startswith("sqlite+aiosqlite:///"):
+        url = url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -42,7 +44,10 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     """Create async engine and run migrations."""
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = get_database_url()
+    url = get_database_url()
+    if url.startswith("sqlite:///") and not url.startswith("sqlite+aiosqlite:///"):
+        url = url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    configuration["sqlalchemy.url"] = url
 
     connectable = async_engine_from_config(
         configuration,

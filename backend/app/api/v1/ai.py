@@ -1,11 +1,13 @@
 """API endpoints for AI assistance: Goal Decomposition and Replan Explanations."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from backend.app.auth.deps import get_current_user, require_project_member
 from backend.app.core.config import settings
 from backend.app.llm.goal_decomposer import GoalDecomposer
 from backend.app.llm.provider import get_llm_provider
 from backend.app.llm.replan_explainer import ReplanExplainer
+from backend.app.models.auth import ProjectMembershipORM, UserORM
 from backend.app.schemas.ai import (
     AIInfoResponse,
     GoalDecompositionRequest,
@@ -22,8 +24,10 @@ router = APIRouter(tags=["ai"])
     response_model=AIInfoResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_ai_info() -> AIInfoResponse:
-    """Return active AI provider and model metadata."""
+async def get_ai_info(
+    _user: UserORM = Depends(get_current_user),
+) -> AIInfoResponse:
+    """Return active AI provider and model metadata (authenticated users)."""
     provider_name = (settings.llm_provider or "").lower().strip()
     is_mock = provider_name == "mock"
     return AIInfoResponse(
@@ -40,11 +44,13 @@ async def get_ai_info() -> AIInfoResponse:
 )
 async def decompose_goal_endpoint(
     req: GoalDecompositionRequest,
+    _user: UserORM = Depends(get_current_user),
 ) -> GoalDecompositionResponse:
     """
     Decompose a high-level project goal into structured tasks and dependencies.
 
     Rule 2: Validated via Pydantic v2 and TaskGraph. Never writes to DB directly.
+    Requires authentication to protect API credits.
     """
     try:
         provider = get_llm_provider()
@@ -73,9 +79,10 @@ async def decompose_goal_endpoint(
 async def decompose_goal_for_project_endpoint(
     project_id: str,
     req: GoalDecompositionRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
 ) -> GoalDecompositionResponse:
-    """Project-scoped route alias for goal decomposition."""
-    return await decompose_goal_endpoint(req)
+    """Project-scoped route alias for goal decomposition (requires membership)."""
+    return await decompose_goal_endpoint(req, _membership.user)
 
 
 @router.post(
@@ -86,11 +93,13 @@ async def decompose_goal_for_project_endpoint(
 async def explain_replan_endpoint(
     project_id: str,
     req: ReplanExplanationRequest,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
 ) -> ReplanExplanationResponse:
     """
     Generate an executive explanation grounded in deterministic replan metrics.
 
     Rule 3: The LLM explains computed numbers; it never invents them.
+    Requires project membership.
     """
     try:
         provider = get_llm_provider()

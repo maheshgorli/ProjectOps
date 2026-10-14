@@ -1,4 +1,10 @@
-"""Seed realistic demo project and plan into ProjectOps database."""
+"""Seed realistic demo project and plan into ProjectOps database.
+
+DEV-ONLY DEMO SEED SCRIPT:
+Directly invokes database session to seed Project Phoenix, demo team members,
+a default owner account (alice@example.com / Password123!), owner project membership,
+and initial baseline plan snapshot with complete audit history and execution states.
+"""
 
 import asyncio
 import os
@@ -8,6 +14,7 @@ from uuid import uuid4
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from backend.app.auth.security import hash_password
 from backend.app.db.session import async_session_maker, create_all_tables
 from backend.app.domain.clock import SystemClock
 from backend.app.domain.models import (
@@ -18,7 +25,9 @@ from backend.app.domain.models import (
     Task,
     TaskStatus,
 )
+from backend.app.models.auth import ProjectMembershipORM, UserORM
 from backend.app.models.project import MemberORM, ProjectORM
+from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
 
@@ -29,8 +38,20 @@ async def seed_data():
         clock = SystemClock()
         plan_repo = PlanRepository(session)
         history_repo = HistoryRepository(session)
+        exec_repo = ExecutionRepository(session)
 
-        # 1. Create Demo Project
+        # 1. Create Demo User Account (Owner)
+        demo_user = UserORM(
+            id=str(uuid4()),
+            email="alice@example.com",
+            display_name="Alice Walker",
+            password_hash=hash_password("Password123!"),
+            is_active=True,
+        )
+        session.add(demo_user)
+        await session.flush()
+
+        # 2. Create Demo Project
         project = ProjectORM(
             name="Project Phoenix: Cloud Modernization",
             description=(
@@ -41,7 +62,16 @@ async def seed_data():
         session.add(project)
         await session.flush()
 
-        # 2. Add Team Members
+        # 3. Create Project Membership (Owner)
+        membership = ProjectMembershipORM(
+            id=str(uuid4()),
+            project_id=project.id,
+            user_id=demo_user.id,
+            role="owner",
+        )
+        session.add(membership)
+
+        # 4. Add Team Members
         alice = MemberORM(
             project_id=project.id,
             name="Alice Walker",
@@ -69,7 +99,7 @@ async def seed_data():
         session.add_all([alice, bob, carol, dave])
         await session.flush()
 
-        # 3. Create Baseline Plan (Version 1)
+        # 5. Create Baseline Plan (Version 1)
         today = clock.today()
         tasks = {
             "TASK-01": Task(
@@ -231,38 +261,40 @@ async def seed_data():
             members=members,
             target_completion_date=today + timedelta(days=20),
             created_at=datetime.now(UTC),
-            created_by="system_bootstrap",
+            created_by=demo_user.id,
         )
 
         saved_plan = await plan_repo.save_plan_snapshot(plan, activate=True)
+        await exec_repo.backfill_execution_states_from_plan(project.id, saved_plan)
 
-        # 4. Add Initial Audit Records
+        # 6. Add Initial Audit Records
         await history_repo.record_progress(
             project_id=project.id,
             task_id="TASK-01",
             previous_status="IN_PROGRESS",
             new_status="COMPLETED",
             evidence_notes="Architecture design document approved by team lead.",
-            recorded_by="Alice Walker",
+            recorded_by=demo_user.id,
         )
         await history_repo.record_decision(
             project_id=project.id,
             plan_id=saved_plan.id,
-            decision_type="BASELINE_APPROVED",
-            summary="Approved Baseline Plan v1",
+            decision_type="PLAN_ACTIVATED",
+            summary="Approved and activated Baseline Plan v1",
             rationale="Deterministic scheduling confirms feasible path within target date.",
-            decided_by="Alice Walker (Lead Architect)",
+            decided_by=demo_user.id,
         )
         await history_repo.record_agent_run(
             project_id=project.id,
             loop_stage="PLAN",
             status="SUCCESS",
             summary="Plan v1 verified: 7 tasks, 8 precedence edges, 0 cycles detected.",
-            triggered_by="bootstrap",
+            triggered_by=f"user:{demo_user.id}",
         )
 
         await session.commit()
         print(f"Successfully seeded demo project: '{project.name}' (ID: {project.id})")
+        print(f"Demo Owner Login: alice@example.com / Password123! (User ID: {demo_user.id})")
 
 
 if __name__ == "__main__":

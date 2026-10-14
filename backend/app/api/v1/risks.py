@@ -5,10 +5,12 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.auth.deps import require_project_member
 from backend.app.db.session import get_async_session
 from backend.app.domain.clock import SystemClock
 from backend.app.domain.risk.engine import DeterministicRiskEngine
 from backend.app.domain.risk.replan_generator import ReplanCandidateGenerator
+from backend.app.models.auth import ProjectMembershipORM
 from backend.app.repositories.execution_repository import ExecutionRepository
 from backend.app.repositories.history_repository import HistoryRepository
 from backend.app.repositories.plan_repository import PlanRepository
@@ -27,6 +29,7 @@ router = APIRouter(prefix="/projects/{project_id}", tags=["risks"])
 async def analyze_project_risks(
     project_id: str,
     version: int | None = Query(None, description="Specific plan version; defaults to active"),
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> RiskAnalysisResponse:
     """
@@ -86,6 +89,7 @@ async def analyze_project_risks(
 @router.post("/replan/propose", response_model=ReplanCandidateResponse)
 async def propose_replan_mitigation(
     project_id: str,
+    _membership: ProjectMembershipORM = Depends(require_project_member),
     session: AsyncSession = Depends(get_async_session),
 ) -> ReplanCandidateResponse:
     """
