@@ -3,14 +3,20 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_DB_URL = f"sqlite+aiosqlite:///{_REPO_ROOT.as_posix()}/projectops.db"
+_ENV_FILES = (
+    _REPO_ROOT / ".env",
+    _BACKEND_DIR / ".env",
+    ".env",
+)
 
 
 class Settings(BaseSettings):
     """Core settings for ProjectOps."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         extra="ignore",
     )

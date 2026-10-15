@@ -18,6 +18,8 @@ dependencies = [
     "anthropic>=1.11.0",
     "argon2-cffi>=23.1.0",
     "pyjwt>=2.9.0",
+    "python-multipart>=0.0.32",
+    "pypdf>=6.20.1",
 ]
 
 [project.optional-dependencies]
