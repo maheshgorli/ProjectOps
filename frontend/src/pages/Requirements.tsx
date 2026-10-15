@@ -164,15 +164,47 @@ export default function Requirements() {
       files: allFiles,
     };
 
-    try {
-      localStorage.setItem(
-        `projectops_requirements_${project.id}`,
-        JSON.stringify(data)
-      );
-      navigate("/ai-plan");
-    } catch {
-      setError("Unable to save requirements in this browser.");
-    }
+    // Asynchronously read file contents for real AI planning
+    const readDocs = async () => {
+      const docPromises = files.map(async (file) => {
+        try {
+          const text = await file.text();
+          return {
+            filename: file.name,
+            content: text,
+            file_type: file.name.split(".").pop() || "text",
+          };
+        } catch {
+          return {
+            filename: file.name,
+            content: "",
+            file_type: "text",
+          };
+        }
+      });
+      return Promise.all(docPromises);
+    };
+
+    readDocs().then((loadedDocs) => {
+      try {
+        sessionStorage.setItem(
+          `projectops_requirements_docs_${project.id}`,
+          JSON.stringify(loadedDocs)
+        );
+      } catch {
+        // ignore storage errors
+      }
+
+      try {
+        localStorage.setItem(
+          `projectops_requirements_${project.id}`,
+          JSON.stringify(data)
+        );
+        navigate("/ai-plan");
+      } catch {
+        setError("Unable to save requirements in this browser.");
+      }
+    });
   }
 
   if (!project) {

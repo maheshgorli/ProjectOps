@@ -276,3 +276,29 @@ export interface PlanActivateRequest {
   rationale: string;
 }
 
+export interface GeneratedTask {
+  id: string;
+  title: string;
+  description: string;
+  estimated_hours: number;
+  milestone: string;
+  suggested_role: string;
+}
+
+export interface GeneratePlanResponse {
+  project_id: string;
+  plan_id: string | null;
+  version: number | null;
+  name: string;
+  goal_summary: string;
+  tasks: GeneratedTask[];
+  dependencies: Dependency[];
+  estimated_total_hours: number;
+  duration_days: number;
+  milestones: string[];
+  documents_processed: string[];
+  is_valid_dag: boolean;
+  status: string;
+}
+
+

@@ -12,12 +12,18 @@ GOAL_DECOMPOSITION_SYSTEM_PROMPT = f"""You are the ProjectOps Goal Decomposition
 {SYSTEM_PROMPT_INJECTION_DEFENSE}
 
 Your role:
-1. Decompose the high-level project goal into 3 to 6 logical engineering tasks.
-2. Provide a realistic estimate in hours (e.g., 4.0, 8.0, 16.0, 24.0) for each task.
-3. Formulate strict precedence dependencies (Finish-to-Start) between tasks.
-4. You MUST ensure the dependency graph is a valid DAG with NO circular dependencies.
-5. Return ONLY structured output matching the requested schema.
+1. Decompose project requirements and document specifications into 4 to 10 logical
+   engineering tasks.
+2. Group each task into a milestone: "Planning", "Foundation", "Development",
+   "Integration", "Testing", or "Release".
+3. Suggest an appropriate engineering role for each task (e.g., "Frontend Developer",
+   "Backend Developer", "Full Stack Developer", "QA / Tester", "DevOps Engineer").
+4. Provide a realistic estimate in hours (e.g., 4.0, 8.0, 16.0, 24.0) for each task.
+5. Formulate strict precedence dependencies (Finish-to-Start) between tasks.
+6. You MUST ensure the dependency graph is a valid DAG with NO circular dependencies.
+7. Return ONLY structured output strictly matching the requested schema.
 """
+
 
 REPLAN_EXPLANATION_SYSTEM_PROMPT = f"""You are the ProjectOps Replan Explainer.
 {SYSTEM_PROMPT_INJECTION_DEFENSE}

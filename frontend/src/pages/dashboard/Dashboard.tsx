@@ -1,5 +1,4 @@
-// TODO(phase-g): Onboarding page currently uses localStorage; rewire to backend API in Phase G.
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -12,8 +11,10 @@ import {
   LogOut,
   ArrowRight,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
+import { api } from "../../services/api";
 
 type Member = {
   id: string;
@@ -50,6 +51,7 @@ type Task = {
 type Plan = {
   projectId: string;
   tasks: Task[];
+  source?: string;
 };
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -78,11 +80,37 @@ export default function Dashboard() {
     return projects.find((p) => p.id === id) || null;
   });
 
-  const [plan] = useState<Plan | null>(() =>
-    project
-      ? readStorage(`projectops_demo_plan_${project.id}`, null)
-      : null
-  );
+  const [plan, setPlan] = useState<Plan | null>(() => {
+    if (!project) return null;
+    return (
+      readStorage(`projectops_active_plan_${project.id}`, null) ||
+      readStorage(`projectops_demo_plan_${project.id}`, null)
+    );
+  });
+
+  useEffect(() => {
+    if (!project?.id) return;
+    api.getActivePlan(project.id)
+      .then((activePlan) => {
+        if (activePlan && activePlan.tasks) {
+          const taskList: Task[] = Object.values(activePlan.tasks).map((t) => ({
+            id: t.id,
+            title: t.title,
+            milestone: "Execution",
+            estimatedHours: t.estimated_hours,
+            assigneeId: t.assigned_to_id || "",
+          }));
+          setPlan({
+            projectId: project.id,
+            tasks: taskList,
+            source: "backend_active",
+          });
+        }
+      })
+      .catch(() => {
+        // Fallback to local storage snapshot
+      });
+  }, [project?.id]);
 
   // Frontend-only role preview. Real permissions will
   // come from backend membership records later.
@@ -291,11 +319,20 @@ export default function Dashboard() {
                     <div className="py-10 text-center">
                       <p className="text-sm text-slate-500">
                         {view === "leader"
-                          ? "No approved sample plan is available."
+                          ? "No active project execution plan found."
                           : currentMember
                             ? "No tasks have been assigned to you."
                             : "Your login email isn't linked to a team member."}
                       </p>
+                      {view === "leader" && (
+                        <button
+                          onClick={() => navigate("/ai-plan")}
+                          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800"
+                        >
+                          <Sparkles size={14} />
+                          Generate Plan with Groq AI
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-100">

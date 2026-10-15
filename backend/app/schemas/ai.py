@@ -12,6 +12,8 @@ class DecomposedTaskSchema(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str = Field(default="", max_length=2000)
     estimated_hours: float = Field(default=8.0, gt=0, le=200)
+    milestone: str = Field(default="Development", max_length=100)
+    suggested_role: str = Field(default="Full Stack Developer", max_length=100)
 
 
 class DecomposedGoalSchema(BaseModel):
@@ -62,3 +64,38 @@ class AIInfoResponse(BaseModel):
     provider: str
     model: str
     is_mock: bool
+
+
+class DocumentUploadItem(BaseModel):
+    """Uploaded document representation for JSON payloads."""
+
+    filename: str
+    content: str  # text or base64
+    file_type: str = "text"
+
+
+class GeneratePlanRequest(BaseModel):
+    """Request to generate a full AI execution plan from requirements & documents."""
+
+    requirements: str = Field(default="", max_length=10000)
+    github_url: str = Field(default="", max_length=500)
+    documents: list[DocumentUploadItem] = Field(default_factory=list)
+    save_as_draft: bool = Field(default=True)
+
+
+class GeneratePlanResponse(BaseModel):
+    """Response containing generated plan, DAG metrics, and document processing info."""
+
+    project_id: str
+    plan_id: str | None = None
+    version: int | None = None
+    name: str
+    goal_summary: str
+    tasks: list[DecomposedTaskSchema]
+    dependencies: list[DependencySchema]
+    estimated_total_hours: float
+    duration_days: int
+    milestones: list[str]
+    documents_processed: list[str]
+    is_valid_dag: bool
+    status: str = "DRAFT"

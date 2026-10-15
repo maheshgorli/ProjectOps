@@ -255,6 +255,160 @@ class GrokProvider:
             ) from exc
 
 
+class GroqProvider:
+    """Groq LLM implementation using official GroqCloud API (OpenAI-compatible)."""
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        timeout: float = 60.0,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self.api_key = (
+            api_key
+            if api_key is not None
+            else (settings.groq_api_key or os.getenv("GROQ_API_KEY", ""))
+        )
+        self.model = model or settings.groq_model or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+        self.base_url = (
+            base_url
+            or settings.groq_base_url
+            or os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+        ).rstrip("/")
+        self.timeout = timeout
+        self._http_client = http_client
+
+    def _get_headers(self) -> dict[str, str]:
+        if not self.api_key:
+            raise ValueError(
+                "GROQ_API_KEY is not configured. "
+                "Set GROQ_API_KEY or explicitly set LLM_PROVIDER=mock for development."
+            )
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout,
+            )
+        return self._http_client
+
+    async def generate_text(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+    ) -> str:
+        headers = self._get_headers()
+        client = self._get_client()
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.2,
+        }
+        try:
+            response = await client.post("/chat/completions", json=payload, headers=headers)
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(f"Groq API request timed out after {self.timeout}s") from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError(f"Groq API connection error: {exc.__class__.__name__}") from exc
+
+        if response.status_code == 401:
+            raise ValueError(
+                "Groq API authentication failed (401 Unauthorized). Verify GROQ_API_KEY."
+            )
+        if response.status_code == 429:
+            raise RuntimeError("Groq API rate limit exceeded (429 Too Many Requests).")
+        if response.is_error:
+            raise RuntimeError(
+                f"Groq API request failed with status {response.status_code}: {response.text}"
+            )
+
+        data = response.json()
+        try:
+            return data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f"Malformed response payload from Groq API: {exc}") from exc
+
+    async def generate_structured(
+        self,
+        prompt: str,
+        schema: type[T],
+        system_prompt: str | None = None,
+    ) -> T:
+        client = self._get_client()
+        json_schema = json.dumps(schema.model_json_schema(), indent=2)
+        schema_instruction = (
+            "You must reply ONLY with a valid JSON object strictly matching this JSON schema:\n"
+            f"{json_schema}\n"
+            "Do not include any text before or after the JSON object."
+        )
+        full_system = (
+            f"{system_prompt}\n\n{schema_instruction}" if system_prompt else schema_instruction
+        )
+
+        headers = self._get_headers()
+        messages = [
+            {"role": "system", "content": full_system},
+            {"role": "user", "content": prompt},
+        ]
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            response = await client.post("/chat/completions", json=payload, headers=headers)
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(f"Groq API request timed out after {self.timeout}s") from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError(f"Groq API connection error: {exc.__class__.__name__}") from exc
+
+        if response.status_code == 401:
+            raise ValueError(
+                "Groq API authentication failed (401 Unauthorized). Verify GROQ_API_KEY."
+            )
+        if response.status_code == 429:
+            raise RuntimeError("Groq API rate limit exceeded (429 Too Many Requests).")
+        if response.is_error:
+            raise RuntimeError(
+                f"Groq API request failed with status {response.status_code}: {response.text}"
+            )
+
+        data = response.json()
+        try:
+            raw_text = data["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f"Malformed response payload from Groq API: {exc}") from exc
+
+        # Extract JSON from potential markdown code fences
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_text)
+        json_str = match.group(1).strip() if match else raw_text
+
+        try:
+            parsed_dict = json.loads(json_str)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON returned by Groq API: {exc}") from exc
+
+        try:
+            return schema.model_validate(parsed_dict)
+        except Exception as exc:
+            raise ValueError(
+                f"Groq output failed schema validation for {schema.__name__}: {exc}"
+            ) from exc
+
+
 class MockLLMProvider:
     """Deterministic, offline mock provider for automated tests and fallback."""
 
@@ -330,6 +484,7 @@ def get_llm_provider() -> LLMProvider:
 
     Enforces:
     - If LLM_PROVIDER is 'claude', ANTHROPIC_API_KEY is required; raises ValueError if missing.
+    - If LLM_PROVIDER is 'groq', GROQ_API_KEY is required; raises ValueError if missing.
     - If LLM_PROVIDER is 'grok' or 'xai', XAI_API_KEY is required; raises ValueError if missing.
     - 'mock' is allowed only when explicitly set via LLM_PROVIDER=mock.
     - Unknown providers raise ValueError.
@@ -345,6 +500,18 @@ def get_llm_provider() -> LLMProvider:
                 "Set ANTHROPIC_API_KEY or explicitly set LLM_PROVIDER=mock for development."
             )
         return ClaudeProvider(api_key=api_key, model=settings.anthropic_model)
+    if provider_type == "groq":
+        api_key = settings.groq_api_key or os.getenv("GROQ_API_KEY", "")
+        if not api_key:
+            raise ValueError(
+                "GROQ_API_KEY is not configured. "
+                "Set GROQ_API_KEY or explicitly set LLM_PROVIDER=mock for development."
+            )
+        return GroqProvider(
+            api_key=api_key,
+            model=settings.groq_model,
+            base_url=settings.groq_base_url,
+        )
     if provider_type in ("grok", "xai"):
         api_key = settings.xai_api_key or os.getenv("XAI_API_KEY", "")
         if not api_key:
@@ -358,5 +525,5 @@ def get_llm_provider() -> LLMProvider:
             base_url=settings.xai_base_url,
         )
     raise ValueError(
-        f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude', 'grok', or 'mock'."
+        f"Unsupported LLM_PROVIDER '{provider_type}'. Must be 'claude', 'groq', 'grok', or 'mock'."
     )

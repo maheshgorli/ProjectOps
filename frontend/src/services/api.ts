@@ -9,6 +9,7 @@ import type {
   AuthTokenResponse,
   AuthUser,
   DecisionRecord,
+  GeneratePlanResponse,
   GoalDecompositionResponse,
   LoopStepResponse,
   Member,
@@ -357,6 +358,30 @@ export const api = {
     };
   },
 
+  // AI Execution Plan Generation
+  async generatePlan(
+    projectId: string,
+    payload:
+      | FormData
+      | {
+          requirements: string;
+          github_url?: string;
+          documents?: Array<{ filename: string; content: string; file_type?: string }>;
+          save_as_draft?: boolean;
+        },
+  ): Promise<GeneratePlanResponse> {
+    if (payload instanceof FormData) {
+      return authFetch<GeneratePlanResponse>(`/projects/${projectId}/ai/generate-plan`, {
+        method: 'POST',
+        body: payload,
+      });
+    }
+    return authFetch<GeneratePlanResponse>(`/projects/${projectId}/ai/generate-plan-json`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   // History & Evidence Streams
   async getProgressHistory(projectId: string): Promise<ProgressHistoryEvent[]> {
     return authFetch<ProgressHistoryEvent[]>(`/projects/${projectId}/history/progress`);
@@ -366,3 +391,4 @@ export const api = {
     return authFetch<DecisionRecord[]>(`/projects/${projectId}/decisions`);
   },
 };
+

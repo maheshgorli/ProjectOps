@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     xai_base_url: str = "https://api.x.ai/v1"
     xai_model: str = "grok-2-latest"
 
+    # Groq Settings
+    groq_api_key: str | None = None
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_model: str = "openai/gpt-oss-120b"
+
     # GitHub Webhook Settings
     # No fallback secret allowed; must be explicitly configured
     github_webhook_secret: str | None = None
