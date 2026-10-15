@@ -1,8 +1,9 @@
 """ORM models for User authentication and Project Membership authorization."""
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -51,3 +52,27 @@ class ProjectMembershipORM(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     project: Mapped["ProjectORM"] = relationship("ProjectORM", back_populates="memberships")
     user: Mapped["UserORM"] = relationship("UserORM", back_populates="memberships")
+
+
+class LoginAuditORM(Base, UUIDPrimaryKeyMixin):
+    """Append-only audit log of user login attempts."""
+
+    __tablename__ = "login_audits"
+
+    user_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # "SUCCESS", "FAILED"
+    ip_address: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )

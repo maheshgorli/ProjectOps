@@ -1,4 +1,4 @@
-from backend.app.models.auth import ProjectMembershipORM, UserORM
+from backend.app.models.auth import LoginAuditORM, ProjectMembershipORM, UserORM
 from backend.app.models.execution import TaskExecutionStateORM
 from backend.app.models.history import (
     AgentRunORM,
@@ -21,6 +21,7 @@ from backend.app.models.proposal import ReplanProposalORM
 __all__ = [
     "UserORM",
     "ProjectMembershipORM",
+    "LoginAuditORM",
     "ProjectORM",
     "MemberORM",
     "ProjectPlanORM",
