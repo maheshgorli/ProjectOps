@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.auth.deps import (
@@ -13,6 +14,7 @@ from backend.app.auth.deps import (
 )
 from backend.app.db.session import get_async_session
 from backend.app.models.auth import ProjectMembershipORM, UserORM
+from backend.app.models.project import ProjectORM
 from backend.app.repositories.project_repository import ProjectRepository
 from backend.app.schemas.project import (
     MemberCreateRequest,
@@ -22,6 +24,41 @@ from backend.app.schemas.project import (
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _build_project_response(project: ProjectORM) -> ProjectResponse:
+    """Format ProjectORM into ProjectResponse with active plan metadata."""
+    state = inspect(project)
+    active_plan = None
+    if "plans" not in state.unloaded and project.plans:
+        active_plan = next((p for p in project.plans if p.is_active), None)
+
+    task_count = 0
+    if active_plan:
+        plan_state = inspect(active_plan)
+        if "tasks" not in plan_state.unloaded and active_plan.tasks:
+            task_count = len(active_plan.tasks)
+
+    active_plan_version = active_plan.version if active_plan else None
+    target_completion_date = (
+        active_plan.target_completion_date if active_plan else None
+    )
+
+    members_list = []
+    if "members" not in state.unloaded and project.members:
+        members_list = [MemberResponse.model_validate(m) for m in project.members]
+
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        description=project.description,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        members=members_list,
+        task_count=task_count,
+        active_plan_version=active_plan_version,
+        target_completion_date=target_completion_date,
+    )
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -43,14 +80,7 @@ async def create_project(
     )
     session.add(membership)
 
-    response = ProjectResponse(
-        id=project.id,
-        name=project.name,
-        description=project.description,
-        created_at=project.created_at,
-        updated_at=project.updated_at,
-        members=[],
-    )
+    response = _build_project_response(project)
     await session.commit()
     return response
 
@@ -63,17 +93,7 @@ async def list_projects(
     """List only projects accessible to the authenticated caller."""
     repo = ProjectRepository(session)
     projects = await repo.list_user_projects(current_user.id)
-    return [
-        ProjectResponse(
-            id=p.id,
-            name=p.name,
-            description=p.description,
-            created_at=p.created_at,
-            updated_at=p.updated_at,
-            members=[MemberResponse.model_validate(m) for m in p.members],
-        )
-        for p in projects
-    ]
+    return [_build_project_response(p) for p in projects]
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -90,14 +110,7 @@ async def get_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{project_id}' not found.",
         )
-    return ProjectResponse(
-        id=project.id,
-        name=project.name,
-        description=project.description,
-        created_at=project.created_at,
-        updated_at=project.updated_at,
-        members=[MemberResponse.model_validate(m) for m in project.members],
-    )
+    return _build_project_response(project)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

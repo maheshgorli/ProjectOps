@@ -1,6 +1,6 @@
 """Pydantic v2 schemas for Projects and Members."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,3 +44,6 @@ class ProjectResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     members: list[MemberResponse] = []
+    task_count: int = 0
+    active_plan_version: int | None = None
+    target_completion_date: date | None = None

@@ -11,6 +11,7 @@ import type {
   DecisionRecord,
   GeneratePlanResponse,
   GoalDecompositionResponse,
+  LoginAuditRecord,
   LoopStepResponse,
   Member,
   ProgressHistoryEvent,
@@ -117,6 +118,10 @@ export const api = {
 
   async getMe(): Promise<AuthUser> {
     return authFetch<AuthUser>('/auth/me');
+  },
+
+  async getLoginAudit(): Promise<LoginAuditRecord[]> {
+    return authFetch<LoginAuditRecord[]>('/auth/audit');
   },
 
   // Projects

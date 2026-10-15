@@ -226,3 +226,55 @@ async def test_auth_me_endpoint(auth_client: httpx.AsyncClient, auth_user: UserO
     assert data["display_name"] == auth_user.display_name
     assert data["is_active"] is True
     assert "password_hash" not in data
+
+
+@pytest.mark.asyncio
+async def test_login_audit_trail_recorded(
+    client: httpx.AsyncClient,
+    test_session: AsyncSession,
+):
+    # Register a user
+    email = "audit_user@example.com"
+    pwd = "AuditPassword123!"
+    reg_res = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "display_name": "Audit User", "password": pwd},
+    )
+    assert reg_res.status_code == 201
+
+    # 1. Failed login with wrong password
+    fail_res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "WrongPassword999!"},
+    )
+    assert fail_res.status_code == 401
+
+    # 2. Failed login with unknown email
+    unknown_res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "nobody@example.com", "password": "SomePassword123!"},
+    )
+    assert unknown_res.status_code == 401
+
+    # 3. Successful login
+    succ_res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": pwd},
+    )
+    assert succ_res.status_code == 200
+    token = succ_res.json()["access_token"]
+
+    # 4. Fetch audit history via /api/v1/auth/audit
+    audit_res = await client.get(
+        "/api/v1/auth/audit",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert audit_res.status_code == 200
+    audits = audit_res.json()
+    assert len(audits) >= 2
+    # Most recent should be SUCCESS
+    assert audits[0]["status"] == "SUCCESS"
+    assert audits[0]["email"] == email
+    # Prior was FAILED
+    assert audits[1]["status"] == "FAILED"
+

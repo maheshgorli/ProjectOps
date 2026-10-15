@@ -52,3 +52,18 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class LoginAuditResponse(BaseModel):
+    """Audit log entry for a user login attempt."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str | None = None
+    email: str
+    status: str
+    ip_address: str | None = None
+    user_agent: str | None = None
+    failure_reason: str | None = None
+    created_at: datetime

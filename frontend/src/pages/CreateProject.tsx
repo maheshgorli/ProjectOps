@@ -1,4 +1,3 @@
-// TODO(phase-g): Onboarding page currently uses localStorage; rewire to backend API in Phase G.
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -7,7 +6,9 @@ import {
   CalendarDays,
   FolderKanban,
   Clock3,
+  Loader2,
 } from "lucide-react";
+import { api } from "../services/api";
 
 type Team = {
   id: string;
@@ -69,7 +70,22 @@ function calculateDuration(start: string, end: string): number {
 export default function CreateProject() {
   const navigate = useNavigate();
 
-  const [team] = useState<Team | null>(getTeam);
+  const [team] = useState<Team | null>(() => {
+    const existing = getTeam();
+    if (existing) return existing;
+    const fallback: Team = {
+      id: "team-default",
+      name: "Engineering Team",
+      description: "Default workspace team",
+      members: [],
+    };
+    try {
+      localStorage.setItem("projectops_team", JSON.stringify(fallback));
+    } catch {
+      // ignore
+    }
+    return fallback;
+  });
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -78,17 +94,13 @@ export default function CreateProject() {
   const [startDate, setStartDate] = useState(todayLocal());
   const [deadline, setDeadline] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const durationDays = calculateDuration(startDate, deadline);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-
-    if (!team) {
-      setError("Please create a team first.");
-      return;
-    }
 
     if (!name.trim()) {
       setError("Please enter a project name.");
@@ -100,39 +112,46 @@ export default function CreateProject() {
       return;
     }
 
-    const project: Project = {
-      id: crypto.randomUUID(),
-      teamId: team.id,
-      name: name.trim(),
-      description: description.trim(),
-      type,
-      startDate,
-      deadline,
-      durationDays,
-      priority,
-      status: "Planning",
-    };
-
+    setIsSubmitting(true);
     try {
+      // 1. Persist to real backend database via API
+      const backendProject = await api.createProject(
+        name.trim(),
+        description.trim()
+      );
+
+      // 2. Mirror into local state for wizard navigation
+      const project: Project = {
+        id: backendProject.id,
+        teamId: team?.id || "team-default",
+        name: backendProject.name,
+        description: backendProject.description || description.trim(),
+        type,
+        startDate,
+        deadline,
+        durationDays,
+        priority,
+        status: "Planning",
+      };
+
       const raw = localStorage.getItem("projectops_projects");
       const parsed: unknown = raw ? JSON.parse(raw) : [];
-      const projects: Project[] = Array.isArray(parsed)
-        ? parsed
-        : [];
+      const projects: Project[] = Array.isArray(parsed) ? parsed : [];
 
       localStorage.setItem(
         "projectops_projects",
-        JSON.stringify([...projects, project])
+        JSON.stringify([...projects.filter((p) => p.id !== project.id), project])
       );
 
-      localStorage.setItem(
-        "projectops_active_project",
-        project.id
-      );
+      localStorage.setItem("projectops_active_project", project.id);
 
       navigate("/add-members");
-    } catch {
-      setError("Unable to save the project.");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Unable to create project in backend.";
+      setError(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -363,10 +382,14 @@ export default function CreateProject() {
 
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-700"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
             >
-              Continue to members
-              <ArrowRight size={17} />
+              {isSubmitting ? (
+                <Loader2 size={17} className="animate-spin" />
+              ) : null}
+              {isSubmitting ? "Creating..." : "Continue to members"}
+              {!isSubmitting && <ArrowRight size={17} />}
             </button>
           </div>
         </form>

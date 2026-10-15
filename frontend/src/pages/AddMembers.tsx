@@ -1,4 +1,3 @@
-// TODO(phase-g): Onboarding page currently uses localStorage; rewire to backend API in Phase G.
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,6 +11,7 @@ import {
   X,
   Check,
 } from "lucide-react";
+import { api } from "../services/api";
 
 type Member = {
   id: string;
@@ -68,15 +68,21 @@ const skillOptions = [
   "Documentation",
 ];
 
-function loadTeam(): Team | null {
+function loadTeam(): Team {
   try {
     const raw = localStorage.getItem("projectops_team");
-    if (!raw) return null;
+    if (!raw) {
+      return { id: "team-default", name: "Engineering Team", description: "", members: [] };
+    }
     const data = JSON.parse(raw) as Team;
-    if (!data.id) return null;
-    return { ...data, members: data.members || [] };
+    return {
+      id: data.id || "team-default",
+      name: data.name || "Engineering Team",
+      description: data.description || "",
+      members: data.members || [],
+    };
   } catch {
-    return null;
+    return { id: "team-default", name: "Engineering Team", description: "", members: [] };
   }
 }
 
@@ -104,7 +110,7 @@ const emptyForm = {
 export default function AddMembers() {
   const navigate = useNavigate();
 
-  const [team, setTeam] = useState<Team | null>(loadTeam);
+  const [team, setTeam] = useState<Team>(loadTeam);
   const [project] = useState<Project | null>(loadProject);
 
   const [form, setForm] = useState({ ...emptyForm });
@@ -132,11 +138,9 @@ export default function AddMembers() {
     }));
   }
 
-  function saveMember(e: FormEvent<HTMLFormElement>) {
+  async function saveMember(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-
-    if (!team) return;
 
     if (!form.name.trim() || !form.email.trim()) {
       setError("Name and email are required.");
@@ -170,8 +174,26 @@ export default function AddMembers() {
       return;
     }
 
+    let memberId = editingId || crypto.randomUUID();
+
+    // Persist to backend database if active project is loaded
+    if (project?.id) {
+      try {
+        const dailyCapacity = form.weeklyHours / 5.0;
+        const created = await api.createMember(
+          project.id,
+          form.name.trim(),
+          form.role,
+          dailyCapacity
+        );
+        memberId = created.id;
+      } catch (err: unknown) {
+        console.warn("Backend createMember notice:", err);
+      }
+    }
+
     const member: Member = {
-      id: editingId || crypto.randomUUID(),
+      id: memberId,
       name: form.name.trim(),
       email: normalizedEmail,
       role: form.role,
@@ -229,14 +251,14 @@ export default function AddMembers() {
     }
   }
 
-  if (!team || !project || project.teamId !== team.id) {
+  if (!project) {
     return (
       <main className="min-h-screen bg-[#f7f8fa] p-10 text-slate-900">
         <h1 className="text-2xl font-semibold">
-          Project setup is incomplete
+          No project selected
         </h1>
         <p className="mt-3 text-slate-500">
-          Create a team and project before adding members.
+          Create or choose a project before adding members.
         </p>
         <button
           onClick={() => navigate("/workspace")}

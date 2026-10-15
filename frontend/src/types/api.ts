@@ -17,6 +17,10 @@ export interface Project {
   description: string;
   created_at: string;
   updated_at: string;
+  members?: Member[];
+  task_count?: number;
+  active_plan_version?: number | null;
+  target_completion_date?: string | null;
 }
 
 export interface Member {
@@ -270,6 +274,17 @@ export interface AuthTokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+}
+
+export interface LoginAuditRecord {
+  id: string;
+  user_id: string | null;
+  email: string;
+  status: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  failure_reason: string | null;
+  created_at: string;
 }
 
 export interface PlanActivateRequest {

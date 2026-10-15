@@ -31,25 +31,32 @@ class ProjectRepository:
             description=description,
         )
         project.members = []
+        project.plans = []
         self.session.add(project)
         await self.session.flush()
         return project
 
     async def get_project(self, project_id: str) -> ProjectORM | None:
-        """Fetch project by ID including members."""
+        """Fetch project by ID including members and plans."""
         stmt = (
             select(ProjectORM)
             .where(ProjectORM.id == project_id)
-            .options(selectinload(ProjectORM.members))
+            .options(
+                selectinload(ProjectORM.members),
+                selectinload(ProjectORM.plans),
+            )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def list_projects(self) -> Sequence[ProjectORM]:
-        """List all projects with members loaded."""
+        """List all projects with members and plans loaded."""
         stmt = (
             select(ProjectORM)
-            .options(selectinload(ProjectORM.members))
+            .options(
+                selectinload(ProjectORM.members),
+                selectinload(ProjectORM.plans),
+            )
             .order_by(ProjectORM.created_at.desc())
         )
         result = await self.session.execute(stmt)
@@ -61,7 +68,10 @@ class ProjectRepository:
             select(ProjectORM)
             .join(ProjectMembershipORM, ProjectORM.id == ProjectMembershipORM.project_id)
             .where(ProjectMembershipORM.user_id == user_id)
-            .options(selectinload(ProjectORM.members))
+            .options(
+                selectinload(ProjectORM.members),
+                selectinload(ProjectORM.plans),
+            )
             .order_by(ProjectORM.created_at.desc())
         )
         result = await self.session.execute(stmt)
